@@ -8,3 +8,4 @@ dependencies:
   - matplotlib
   - seaborn
   - scipy
+  - plotly_express
