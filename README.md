@@ -1,7 +1,7 @@
 # Building Energy Usage Modeling
-This is a capstone project for (Udacity's)[https://www.udacity.com/] Data Science Nanodegree program and also is a Kaggle competition.
+This is a capstone project for [Udacity's](https://www.udacity.com/) Data Science Nanodegree program and also is a Kaggle competition.
 
-Competition (link)[https://www.kaggle.com/c/ashrae-energy-prediction/overview]
+Competition [link](https://www.kaggle.com/c/ashrae-energy-prediction/overview)
 
 # Table of Contents
 TODO
@@ -10,6 +10,6 @@ TODO
 TODO
 
 # Acknowledgements
-(Udacity)[https://www.udacity.com/] Data Science Nanodegree 
-(Kaggle)[https://www.kaggle.com/c/ashrae-energy-prediction/overview] competition 
+[Udacity](https://www.udacity.com/) Data Science Nanodegree 
+[Kaggle](https://www.kaggle.com/c/ashrae-energy-prediction/overview) competition 
 
