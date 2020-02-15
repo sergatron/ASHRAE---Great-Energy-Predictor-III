@@ -315,7 +315,7 @@ gs_results = perform_grid_search(
     )
 gs_results
 print('Best score:', gs_results.best_score_)
-print('Best score:', gs_results.best_params_)
+print('Best params:', gs_results.best_params_)
 
 
 #%%
