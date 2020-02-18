@@ -4,12 +4,14 @@
 # # Compare ML Models
 
 # In[56]:
-
+import datetime
+import gc
+import time
+import pickle
+from joblib import dump, load
 
 import pandas as pd
 import numpy as np
-import pickle
-from joblib import dump, load
 # import lightgbm as lgbm
 import xgboost as xgb
 
@@ -24,9 +26,7 @@ from sklearn.metrics import make_scorer
 from sklearn.pipeline import make_pipeline
 from sklearn.ensemble import RandomForestRegressor, BaggingRegressor
 from sklearn.decomposition import PCA
-
-import datetime
-import gc
+from sklearn.preprocessing import StandardScaler, QuantileTransformer
 
 from pandas.api.types import is_datetime64_any_dtype as is_datetime
 from pandas.api.types import is_categorical_dtype
@@ -214,18 +214,6 @@ def get_sample(df, n=0.5):
     return df.sample(n_sample)
 
 
-# ## Drop Building 1099
-
-# In[64]:
-
-
-# drop indices with building 1099
-
-# idx = np.where(all_df['building_id'] == 1099)[0]
-# # all_df.loc[idx]
-# df_no1099 = all_df.drop(idx, axis=0)
-
-
 # In[65]:
 def save_model(model, filepath):
     """
@@ -255,18 +243,21 @@ def get_X_y(df=all_df, n=1.0, drop_1099=False, filter_meter=False):
 
     # drop indices with building 1099
     if drop_1099:
-        idx = np.where(all_df['building_id'] == 1099)[0]
-        # all_df.loc[idx]
+        print('Dropping building ID 1099... \n')
+        # get indices of building ID 1099
+        idx = np.where(df['building_id'] == 1099)[0]
+        # drop specified indices
         df = df.drop(idx, axis=0)
 
     # filter samples
     # where meter_reading is greater than 0
-    # TODO
     if filter_meter:
+        print('Dropping meter readings of zero... \n')
         df = df[df['meter_reading'] > 0]
 
     # sample size
     if n < 1.0:
+        print(f'Working with {n} sample fraction of data\n')
         # take sample from data
         df = get_sample(df, n)
 
@@ -328,7 +319,7 @@ def perform_grid_search(model, params, X_train, y_train, drop_feats=False, **kwa
 #%%
 
 # define feature space and target
-X, y = get_X_y(n=0.1)
+X, y = get_X_y(n=0.1, drop_1099=True, filter_meter=True)
 # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15)
 
 print("Dropping features: [primary_use]")
@@ -340,82 +331,92 @@ print('\n')
 #%%
 
 params = dict(
-    obj='regression',
-    feval=RMSLE,
-    max_depth=20,
-    min_child_weight=2,
-    eta=0.05,
-    subsample=0.8,
-    gamma=2,
+        obj='regression',
+        feval=RMSLE,
+        max_depth=20,
+        min_child_weight=2,
+        eta=0.05,
+        # subsample=0.8,
+        gamma=2,
 
-    )
+        )
+def train_model(params, scale=False, n_splits=3):
 
-# create splits
-kf = KFold(n_splits=3)
-# models = []
+    # pipeline to transform data
+    scaler = StandardScaler()
+    pca = PCA(n_components=3, random_state=11)
+    transfomer = make_pipeline(
+        scaler,
+        # pca
+        )
 
-train_rmsle = np.array([])
-test_rmsle = np.array([])
+    # create splits
+    kf = KFold(n_splits=n_splits)
+    # models = []
 
-for train_idx, test_idx in kf.split(X):
+    # instantiate metric arrays
+    train_rmsle = np.array([])
+    test_rmsle = np.array([])
 
-    # define train data
-    X_train = X.loc[train_idx]
-    y_train = y.loc[train_idx]
+    for train_idx, test_idx in kf.split(X):
 
-    # define test data
-    X_test = X.loc[test_idx]
-    y_test= y.loc[test_idx]
+        # define train data
+        X_train, y_train = X.loc[train_idx], y.loc[train_idx]
 
-    print('Filling missing data...\n')
-    fill_nans(X_train)
-    fill_nans(X_test)
+        # define test data
+        X_test, y_test = X.loc[test_idx], y.loc[test_idx]
 
-    # lgbm train data
-    d_training = xgb.DMatrix(X_train,
-                             label=y_train,
-                             )
-    # lgbm test data
-    d_test = xgb.DMatrix(X_test,
-                         label=y_test,
-                         )
+        print('Filling missing data...\n')
+        fill_nans(X_train), fill_nans(X_test)
 
-    # train model
-    model = xgb.train(params,
-                      dtrain=d_training,
-                      num_boost_round=50,
-                      # early_stopping_rounds=25
-                      )
-    # make predictions
-    y_pred = model.predict(d_test)
-    y_pred_train= model.predict(d_training)
-    # score train and test sets
-    rmsle_test_score = RMSLE(y_test, y_pred)
-    rmsle_train_score = RMSLE(y_train, y_pred_train)
+        if scale:
+            print('Scaling data... \n')
+            X_train = transfomer.fit_transform(X_train)
+            X_test = transfomer.fit_transform(X_test)
 
-    # print params and metric
-    print('Test RMSLE:', rmsle_test_score)
-    print('Test RMSE:', MSE(y_test, y_pred, squared=False))
-    print('Test MAE:', MAE(y_test, y_pred))
-    print('=' * 75)
-    print('\n')
+        # lgbm train data
+        d_training = xgb.DMatrix(X_train, label=y_train)
+        # lgbm test data
+        d_test = xgb.DMatrix(X_test, label=y_test)
 
-    # append scores
-    train_rmsle = np.append(train_rmsle, rmsle_train_score)
-    test_rmsle = np.append(test_rmsle, rmsle_test_score)
+        # train model
+        model = xgb.train(params,
+                          dtrain=d_training,
+                          num_boost_round=50,
+                          # early_stopping_rounds=25
+                          )
+        # make predictions
+        y_pred = model.predict(d_test)
+        y_pred_train= model.predict(d_training)
+        # score train and test sets
+        rmsle_test_score = RMSLE(y_test, y_pred)
+        rmsle_train_score = RMSLE(y_train, y_pred_train)
 
-    del X_train, X_test, y_train, y_test, d_training, d_test
-    gc.collect()
+        # print params and metric
+        print('Test RMSLE:', rmsle_test_score)
+        print('Test RMSE:', MSE(y_test, y_pred, squared=False))
+        print('Test MAE:', MAE(y_test, y_pred))
+        print('=' * 75)
+        print('\n')
 
-print('\nMean Train RMSLE:', np.mean(train_rmsle))
-print('Mean Test RMSLE:', np.mean(test_rmsle))
+        # append scores
+        train_rmsle = np.append(train_rmsle, rmsle_train_score)
+        test_rmsle = np.append(test_rmsle, rmsle_test_score)
+
+        del X_train, X_test, y_train, y_test, d_training, d_test
+        gc.collect()
+
+    print('\nMean Train RMSLE:', np.mean(train_rmsle))
+    print('Mean Test RMSLE:', np.mean(test_rmsle))
+
+train_model(params=params, scale=True, n_splits=2)
 #%%
 
 
 
-plt.scatter(y=train_rmsle, x=np.arange(len(test_rmsle)), label='Train')
-plt.scatter(y=test_rmsle, x=np.arange(len(test_rmsle)), label='Test', color='green')
-plt.show()
+# plt.scatter(y=train_rmsle, x=np.arange(len(test_rmsle)), label='Train')
+# plt.scatter(y=test_rmsle, x=np.arange(len(test_rmsle)), label='Test', color='green')
+# plt.show()
 
 
 #%%
