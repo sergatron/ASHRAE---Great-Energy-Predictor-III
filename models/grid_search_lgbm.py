@@ -8,7 +8,8 @@
 
 import pandas as pd
 import numpy as np
-
+import pickle
+from joblib import dump, load
 import lightgbm as lgbm
 
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
@@ -223,10 +224,35 @@ def get_sample(df, n=0.5):
 
 
 # In[65]:
+def save_model(model, filepath):
+    """
 
-def get_X_y(df=all_df, n=0.5):
-    # take sample from data
-    df = get_sample(df, n)
+    Pickles model to given file path.
+
+    Params:
+    -------
+        model: Pipeline
+            Model to pickle.
+
+        filepath: str
+            save model to this directory
+
+    Returns:
+    -------
+        None.
+
+    """
+    try:
+        dump(model, filepath)
+    except Exception as e:
+        print(e)
+        print('Failed to pickle model.')
+
+def get_X_y(df=all_df, n=1.0):
+
+    if n < 1.0:
+        # take sample from data
+        df = get_sample(df, n)
 
     # reset index
     df.reset_index(drop=True, inplace=True)
@@ -286,21 +312,23 @@ def perform_grid_search(model, params, X_train, y_train, drop_feats=False, **kwa
 #%%
 
 # define feature space and target
-X, y = get_X_y(n=0.1)
+X, y = get_X_y()
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15)
 
 print('Filling missing data...\n')
 fill_nans(X_train)
 fill_nans(X_test)
 
+
+#%%
 # define params to search
 search_params = {
     "objective": ["regression"],
     "boosting_type": ["gbdt"],
-    "num_leaves": [1700, 2000, 2300, 2500],
+    "num_leaves": [2100, 2200, 2300],
     "learning_rate": [0.05],
-    "feature_fraction": [0.80, 0.85, 0.90],
-    "reg_lambda": [2, 3, 4],
+    "feature_fraction": [0.85],
+    "reg_lambda": [1, 2],
     "random_state": [11],
 
     }
@@ -360,6 +388,8 @@ print('Test MAE:', MAE(y_test, y_pred))
 print('=' * 75)
 print('\n')
 
+print('Saving model... \n')
+save_model(model, 'lgbm_model.pkl')
 
 
 #%%
@@ -380,6 +410,19 @@ def cross_val_model(model, X_train, y_train):
     print('Mean CV score:', np.mean(result))
     return result
 
-print('CV scores:', cross_val_model(model, X_train, y_train))
+cv_ = cross_val_model(model, X_train, y_train)
+print('CV scores:', cv_)
 
-
+# output results to a file
+with open('cv_results.txt', 'a') as file:
+    file.write('\n\n')
+    #file.write(str(time.localtime()))
+    file.write(('-'*100))
+    file.write('\n\n')
+    file.write(str(params))
+    file.write('\n\n')
+    file.write('CV scores:\n')
+    file.write(str(cv_))
+    file.write('\n\n')
+    file.write(('-'*100))
+    file.write('\n\n')
