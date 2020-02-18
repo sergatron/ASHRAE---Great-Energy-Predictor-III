@@ -42,15 +42,6 @@ pd.options.display.max_rows = 50
 pd.options.display.width = 100
 
 
-# In[58]:
-
-
-# Load data
-train_df = pd.read_csv('../data/train.csv')
-building_df = pd.read_csv('../data/building_metadata.csv')
-weather_df = pd.read_csv('../data/weather_train.csv')
-
-
 # In[59]:
 
 
@@ -109,29 +100,6 @@ def reduce_mem_usage(df, use_float16=False):
     print("Decreased by {:.1f}%".format(100 * (start_mem - end_mem) / start_mem))
 
     return df
-
-
-# # Convert to Datetime
-
-# In[60]:
-
-
-dt_format = "%Y-%m-%d %H:%M:%S"
-train_df['timestamp'] = pd.to_datetime(train_df['timestamp'], format=dt_format)
-weather_df['timestamp'] = pd.to_datetime(weather_df['timestamp'], format=dt_format)
-
-
-# # Merge Data
-
-# In[61]:
-
-
-tb_df = pd.merge(train_df, building_df, on='building_id')
-all_df = pd.merge(tb_df, weather_df, on=['site_id', 'timestamp'])
-del train_df, building_df, weather_df, tb_df
-
-
-# In[63]:
 
 
 def get_nan_idx(column, df):
@@ -239,7 +207,23 @@ def save_model(model, filepath):
         print(e)
         print('Failed to pickle model.')
 
-def get_X_y(df=all_df, n=1.0, drop_1099=False, filter_meter=False):
+def preprocess_data(df):
+    # drop indices with building 1099
+    print('Dropping building ID 1099... \n')
+    # get indices of building ID 1099
+    idx = np.where(df['building_id'] == 1099)[0]
+    # drop specified indices
+    df = df.drop(idx, axis=0)
+
+    # filter outliers
+    # discard heavy use, and low energy usage
+    q50 = df['meter_reading'].quantile(0.5)
+    df = df[(df['meter_reading'] < q50) &\
+            (df['meter_reading'] > 1)]
+
+    return df
+
+def get_X_y(df, n=1.0, drop_1099=False, filter_meter=False):
 
     # drop indices with building 1099
     if drop_1099:
@@ -249,11 +233,15 @@ def get_X_y(df=all_df, n=1.0, drop_1099=False, filter_meter=False):
         # drop specified indices
         df = df.drop(idx, axis=0)
 
-    # filter samples
-    # where meter_reading is greater than 0
+
+    # filter outliers
+    # discard heavy use, and low energy usage
     if filter_meter:
-        print('Dropping meter readings of zero... \n')
-        df = df[df['meter_reading'] > 0]
+        q50 = df['meter_reading'].quantile(0.5)
+        # q15 = df['meter_reading'].quantile(0.15)
+
+        df = df[(df['meter_reading'] < q50) &\
+                (df['meter_reading'] > 1)]
 
     # sample size
     if n < 1.0:
@@ -287,10 +275,18 @@ def get_X_y(df=all_df, n=1.0, drop_1099=False, filter_meter=False):
     return X, y
 
 #%%
-# ## LightGBM
+
 # define metric, Root Mean Squared Log Error
 def RMSLE(y_true, y_pred):
     return np.sqrt(np.mean(np.power(np.log1p(y_pred) - np.log1p(y_true), 2)))
+
+def show_metrics(y_true, y_pred):
+    # print params and metric
+    print('RMSLE:', np.round(RMSLE(y_true, y_pred), 4))
+    print('RMSE:', np.round(MSE(y_true, y_pred, squared=False), 4))
+    print('MAE:', np.round(MAE(y_true, y_pred), 4))
+    print('=' * 75)
+    print('\n')
 
 # grid search function
 def perform_grid_search(model, params, X_train, y_train, drop_feats=False, **kwargs):
@@ -318,28 +314,8 @@ def perform_grid_search(model, params, X_train, y_train, drop_feats=False, **kwa
 
 #%%
 
-# define feature space and target
-X, y = get_X_y(n=0.1, drop_1099=True, filter_meter=True)
-# X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15)
 
-print("Dropping features: [primary_use]")
-X.drop(['primary_use'], axis=1, inplace=True)
 
-print('X-shape:', X.shape)
-print('\n')
-
-#%%
-
-params = dict(
-        obj='regression',
-        feval=RMSLE,
-        max_depth=20,
-        min_child_weight=2,
-        eta=0.05,
-        # subsample=0.8,
-        gamma=2,
-
-        )
 def train_model(params, scale=False, n_splits=3):
 
     # pipeline to transform data
@@ -382,22 +358,20 @@ def train_model(params, scale=False, n_splits=3):
         # train model
         model = xgb.train(params,
                           dtrain=d_training,
-                          num_boost_round=50,
+                          num_boost_round=100,
                           # early_stopping_rounds=25
                           )
         # make predictions
         y_pred = model.predict(d_test)
         y_pred_train= model.predict(d_training)
+
         # score train and test sets
         rmsle_test_score = RMSLE(y_test, y_pred)
         rmsle_train_score = RMSLE(y_train, y_pred_train)
 
-        # print params and metric
-        print('Test RMSLE:', rmsle_test_score)
-        print('Test RMSE:', MSE(y_test, y_pred, squared=False))
-        print('Test MAE:', MAE(y_test, y_pred))
-        print('=' * 75)
-        print('\n')
+        # print metric
+        print('\nTest Metrics:')
+        show_metrics(y_test, y_pred)
 
         # append scores
         train_rmsle = np.append(train_rmsle, rmsle_train_score)
@@ -409,7 +383,53 @@ def train_model(params, scale=False, n_splits=3):
     print('\nMean Train RMSLE:', np.mean(train_rmsle))
     print('Mean Test RMSLE:', np.mean(test_rmsle))
 
-train_model(params=params, scale=True, n_splits=2)
+#%%
+
+if __name__ == '__main__':
+    # Load data
+    print("Loading data...\n")
+    train_df = pd.read_csv('../data/train.csv')
+    building_df = pd.read_csv('../data/building_metadata.csv')
+    weather_df = pd.read_csv('../data/weather_train.csv')
+
+
+    # Convert to Datetime
+    dt_format = "%Y-%m-%d %H:%M:%S"
+    train_df['timestamp'] = pd.to_datetime(train_df['timestamp'],
+                                           format=dt_format)
+    weather_df['timestamp'] = pd.to_datetime(weather_df['timestamp'],
+                                             format=dt_format)
+
+
+    # Merge Data
+    tb_df = pd.merge(train_df, building_df, on='building_id')
+    all_df = pd.merge(tb_df, weather_df, on=['site_id', 'timestamp'])
+    del train_df, building_df, weather_df, tb_df
+
+
+    # define feature space and target
+    X, y = get_X_y(df=all_df, n=0.15, drop_1099=True, filter_meter=True)
+    # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15)
+
+    print("Dropping features: [primary_use]")
+    X.drop(['primary_use'], axis=1, inplace=True)
+
+    print('X-shape:', X.shape)
+    print('\n')
+
+    print('Training model...\n')
+    params = dict(
+            obj='regression',
+            feval=RMSLE,
+            max_depth=20,
+            min_child_weight=2,
+            eta=0.05,
+            # subsample=0.8,
+            gamma=3,
+
+            )
+    train_model(params=params, scale=True, n_splits=2)
+
 #%%
 
 
