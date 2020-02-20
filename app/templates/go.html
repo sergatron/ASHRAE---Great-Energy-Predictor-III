@@ -3,20 +3,17 @@
 
 {% block message %}
     <hr />
-    <h4 class="text-center">MESSAGE</h4>
-    <p class="text-center"><i>{{query}}</i></p>
+    <h4 class="text-center">INPUTS</h4>
+    <p class="text-center"><i>{{warning}}</i></p>
+    <p class="text-center"><i>{{query_1}}</i></p>
+    <p class="text-center"><i>{{query_2}}</i></p>
+    <p class="text-center"><i>{{query_3}}</i></p>
+    <p class="text-center"><i>{{query_4}}</i></p>
 {% endblock %}
 
 {% block content %}
-    <h1 class="text-center">Result</h1>
-        <ul class="list-group">
-            {% for category, classification in classification_result.items() %}
-                {% if classification == 1 %}
-                    <li class="list-group-item list-group-item-success text-center">{{category.replace('_', ' ').title()}}</li>
-                {% else %}
-                    <li class="list-group-item list-group-item-dark text-center">{{category.replace('_', ' ').title()}}</li>
-                {% endif %}
-            {% endfor %}
+    <h1 class="text-center">Predicted Meter Reading (kWh)</h1>
+        <p class="text-center">{{OUTPUT}}</p>
 
         </div>
     </div>
