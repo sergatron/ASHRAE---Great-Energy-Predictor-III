@@ -67,6 +67,7 @@ def reduce_mem_usage(df, use_float16=False):
     # print("Decreased by {:.1f}%".format(100 * (start_mem - end_mem) / start_mem))
 
     return df
+
 def load_data(filepath):
     """
     Import data from database into a DataFrame. Split DataFrame into
@@ -95,7 +96,7 @@ def load_data(filepath):
 # model = load("models/lgbm_model.pkl")
 
 # load data
-df = load_data('../data/clean_data.csv')
+df = load_data('data/clean_data.csv')
 df = reduce_mem_usage(df)
 
 #%%
@@ -160,27 +161,34 @@ def index():
     return render_template('master.html', ids=ids, graphJSON=graphJSON)
 
 
-# # web page that handles user query and displays model results
-# @app.route('/go')
-# def go():
-#     """
-#     Renders a page which takes in user's query then passes
-#     the query to the model which makes predictions and outputs
-#     the labels to screen.
-#     """
-#     # save user input in query
-#     query = request.args.get('query', '')
+# web page that handles user query and displays model results
+@app.route('/go')
+def go():
+    """
+    Renders a page which takes in user's query then passes
+    the query to the model which makes predictions and outputs
+    the labels to screen.
+    """
+    # save user input in query
+    query_1 = request.args.get('query-1', 'NA')
+    query_2 = request.args.get('query-2', 'NA')
+    query_3 = request.args.get('query-3', '')
+    query_4 = request.args.get('query-4', '')
 
-#     # use model to predict classification for query
-#     classification_labels = model.predict([query])[0]
-#     classification_results = dict(zip(df.columns[4:], classification_labels))
+    check_type = type(query_1)
+    OUTPUT = "100k"
 
-#     # This will render the go.html Please see that file.
-#     return render_template(
-#         'go.html',
-#         query=query,
-#         classification_result=classification_results
-#     )
+
+
+    # This will render the go.html Please see that file.
+    return render_template(
+        'go.html',
+        query_1=query_1,
+        query_2=query_2,
+        query_3=query_3,
+        query_4=query_4,
+        OUTPUT=OUTPUT,
+    )
 
 
 def main():
