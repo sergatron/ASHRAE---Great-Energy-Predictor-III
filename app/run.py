@@ -5,7 +5,7 @@ import json
 import pandas as pd
 import numpy as np
 
-from plotly.graph_objs import Bar
+from plotly.graph_objs import Bar, Figure, Scatter, Histogram
 import plotly
 
 from flask import Flask
@@ -99,6 +99,96 @@ def load_data(filepath):
 df = load_data('data/clean_data.csv')
 df = reduce_mem_usage(df)
 
+
+
+#%%
+
+# plot predictions
+def make_sample_df(df, date_range=('2017-01', '2017-03')):
+    """
+    Create new sample DataFrame with sample meter readings, and new
+    timestamp given `date_range`.
+    """
+    df_new = pd.DataFrame()
+    df_new['timestamp'] = np.arange(date_range[0], date_range[1], dtype='datetime64[D]')
+
+    # get number of samples
+    n_samples = df_new.shape[0]
+
+    # sample from original DF
+    df.reset_index(drop=True, inplace=True)
+    df_new['meter_reading'] = df['meter_reading'].sample(n_samples).values
+    # set new index to `timestamp`
+    df_new = df_new.set_index('timestamp')
+
+    return df_new
+
+def make_sample_plot(df, date_range=('2017-01', '2017-03'), resample='D'):
+    df_new = make_sample_df(df, date_range)
+    df_new = df_new.resample(resample).mean()
+    df_new['meter_reading'].plot(
+        kind='line',
+        label='TS Plot',
+        legend=True,
+        linewidth=2
+    )
+
+def plot_predictions(df):
+
+    # get plot for predictions
+    df_new = make_sample_df(df)
+
+    # define two lines to plot
+    y = df_new['meter_reading'].values
+    y2 = np.cos(df_new['meter_reading'].values) + 29
+
+    # new figure
+    fig = Figure([Scatter(x=df_new.index,
+                                y=df_new['meter_reading'].values,
+                                name='Predictions',
+                                line=dict(color='blue'),)
+                    ])
+    # add another line
+    fig.add_trace(Scatter(x=df_new.index,
+                             y=y2,
+                             name='Sine',
+                             line=dict(
+                                 color='firebrick',
+                                 width=4,
+                                 dash='dot')
+                             )
+                  )
+    # Edit layout
+    fig.update_layout(title='Predictions',
+                      yaxis_title='kWh',
+                      plot_bgcolor='white',
+
+                      yaxis=dict(
+                          showgrid=True,
+                          zeroline=True,
+                          showline=True,
+                          linecolor='rgb(204, 204, 204)',
+                          showticklabels=True,
+                          color='black'
+                      ),
+                      xaxis=dict(
+                          showline=True,
+                          showgrid=True,
+                          showticklabels=True,
+                          linecolor='rgb(204, 204, 204)',
+                          linewidth=2,
+                          ticks='outside',
+                          tickfont=dict(
+                              family='Arial',
+                              size=12,
+                              color='rgb(82, 82, 82)',
+                          ),
+                      )
+                     )
+
+    return fig
+
+
 #%%
 # index webpage displays cool visuals and receives user input text for model
 @app.route('/')
@@ -146,12 +236,9 @@ def index():
                 'xaxis': {'title': 'Category',
                           'tickangle': -45,
                           }
-
                 }
-
             },
-
-    ]
+        ]
 
     # encode plotly graphs in JSON
     ids = ["graph-{}".format(i) for i, _ in enumerate(graphs)]
@@ -175,10 +262,12 @@ def go():
     query_3 = request.args.get('query-3', '')
     query_4 = request.args.get('query-4', '')
 
-    check_type = type(query_1)
-    OUTPUT = "100k"
 
+    # get predictions plot
+    fig = plot_predictions(df)
 
+    # encode plotly graphs in JSON
+    graphJSON = fig.to_json()
 
     # This will render the go.html Please see that file.
     return render_template(
@@ -187,7 +276,9 @@ def go():
         query_2=query_2,
         query_3=query_3,
         query_4=query_4,
-        OUTPUT=OUTPUT,
+        graphJSON=graphJSON
+        # ids=ids,
+        # graphJSON=graphJSON
     )
 
 
