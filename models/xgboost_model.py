@@ -12,7 +12,6 @@ from joblib import dump, load
 
 import pandas as pd
 import numpy as np
-# import lightgbm as lgbm
 import xgboost as xgb
 
 import matplotlib.pyplot as plt
@@ -355,11 +354,17 @@ def train_model(params, scale=False, n_splits=3):
         # lgbm test data
         d_test = xgb.DMatrix(X_test, label=y_test)
 
+        evallist = [(d_test, 'eval'), (d_training, 'train')]
+
+        print('\nTraining model... \n')
         # train model
         model = xgb.train(params,
                           dtrain=d_training,
-                          num_boost_round=100,
-                          # early_stopping_rounds=25
+                          num_boost_round=200,
+                          evals=evallist,
+                          early_stopping_rounds=25,
+                          verbose_eval=100,
+
                           )
         # make predictions
         y_pred = model.predict(d_test)
@@ -372,6 +377,9 @@ def train_model(params, scale=False, n_splits=3):
         # print metric
         print('\nTest Metrics:')
         show_metrics(y_test, y_pred)
+        # print metric
+        print('\nTrain Metrics:')
+        show_metrics(y_train, y_pred_train)
 
         # append scores
         train_rmsle = np.append(train_rmsle, rmsle_train_score)
@@ -417,22 +425,50 @@ if __name__ == '__main__':
     print('X-shape:', X.shape)
     print('\n')
 
-    print('Training model...\n')
     params = dict(
             obj='regression',
             feval=RMSLE,
-            max_depth=20,
-            min_child_weight=2,
-            eta=0.05,
-            # subsample=0.8,
+            n_estimators=50,
+            max_depth=10,
+            min_child_weight=3,
+            eta=0.75,
+            subsample=0.8,
             gamma=3,
 
             )
-    train_model(params=params, scale=True, n_splits=2)
+
+    train_model(params=params, scale=False, n_splits=2)
 
 #%%
 
+# import itertools
 
+# params_full = dict(
+#             obj='regression',
+#             # feval=RMSLE,
+#             max_depth=16,
+#             min_child_weight=3,
+#             eta=0.06,
+#             subsample=0.8,
+#             gamma=3,
+#             )
+
+# # Hyperparameter grids
+# max_depth_grid = [10, 16]
+# gamma_grid = [2]
+
+# # For each couple in the grid
+# for depth, gam in itertools.product(max_depth_grid, gamma_grid):
+#     params = dict(
+#             obj='regression',
+#             # feval=RMSLE,
+#             max_depth=depth,
+#             min_child_weight=3,
+#             eta=0.06,
+#             subsample=0.8,
+#             gamma=gam,
+#             )
+#     print(params)
 
 # plt.scatter(y=train_rmsle, x=np.arange(len(test_rmsle)), label='Train')
 # plt.scatter(y=test_rmsle, x=np.arange(len(test_rmsle)), label='Test', color='green')
