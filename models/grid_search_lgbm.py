@@ -325,7 +325,7 @@ fill_nans(X_test)
 search_params = {
     "objective": ["regression"],
     "boosting_type": ["gbdt"],
-    "num_leaves": [2100, 2200, 2300],
+    "num_leaves": [2100, 2200],
     "learning_rate": [0.05],
     "feature_fraction": [0.85],
     "reg_lambda": [1, 2],
