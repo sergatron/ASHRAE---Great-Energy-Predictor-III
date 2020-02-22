@@ -12,14 +12,14 @@ from flask import Flask
 from flask import render_template, request, jsonify
 
 from joblib import dump, load
-from sqlalchemy import create_engine
-
 
 from pandas.api.types import is_datetime64_any_dtype as is_datetime
 from pandas.api.types import is_categorical_dtype
 
 
 app = Flask(__name__)
+
+pd.options.display.float_format = '{:.4f}'.format
 
 #%%
 def reduce_mem_usage(df, use_float16=False):
@@ -33,7 +33,7 @@ def reduce_mem_usage(df, use_float16=False):
     """
 
     start_mem = df.memory_usage().sum() / 1024**2
-    print("Memory usage of dataframe is {:.2f} MB".format(start_mem))
+    # print("Memory usage of dataframe is {:.2f} MB".format(start_mem))
 
     for col in df.columns:
         if is_datetime(df[col]) or is_categorical_dtype(df[col]):
@@ -92,8 +92,9 @@ def load_data(filepath):
 
 #%%
 
-# load model
-# model = load("models/lgbm_model.pkl")
+# load predictions DataFrame
+preds_df = load_data('models/final_preds_df.csv')
+# preds_df = reduce_mem_usage(preds_df)
 
 # load data
 df = load_data('data/clean_data.csv')
@@ -133,49 +134,74 @@ def make_sample_plot(df, date_range=('2017-01', '2017-03'), resample='D'):
         linewidth=2
     )
 
-def plot_predictions(df):
+def make_time_series(df):
+    """
+    Convert input DataFrame to time series.
 
-    # get plot for predictions
-    df_new = make_sample_df(df)
+    """
+    dt_format = "%Y-%m-%d %H:%M:%S"
+    df['timestamp'] = pd.to_datetime(df['timestamp'],
+                                     format=dt_format)
+    return df.set_index('timestamp')
 
-    # define two lines to plot
+
+def plot_predictions(df, date_range=("2017-01-01", "2017-12-31")):
+    """
+
+
+    Params:
+    --------
+        df : DataFrame
+            DataFrame to use for plotting.
+
+        date_range : tuple, optional
+            The default is ("2017-01-01", "2017-12-31") which the based on
+            the test DataFrame and the predictions are made for these dates.
+
+    Returns:
+    --------
+        fig : Plotly Figure
+
+
+    """
+    # # get plot for predictions
+    # df_new = make_sample_df(df)
+
+    # time-series prediction data
+    df_new = make_time_series(df)
+
+    # resample to daily average
+    df_new = df_new.resample('D').mean()
+
+    # define x and y
     y = df_new['meter_reading'].values
-    y2 = np.cos(df_new['meter_reading'].values) + 29
+    x = df_new.index
 
     # new figure
-    fig = Figure([Scatter(x=df_new.index,
-                                y=df_new['meter_reading'].values,
-                                name='Predictions',
-                                line=dict(color='blue'),)
+    fig = Figure([Scatter(x=x,
+                          y=y,
+                          name='Predictions',
+                          line=dict(color='royalblue',
+                                    width=2))
                     ])
-    # add another line
-    fig.add_trace(Scatter(x=df_new.index,
-                             y=y2,
-                             name='Sine',
-                             line=dict(
-                                 color='firebrick',
-                                 width=4,
-                                 dash='dot')
-                             )
-                  )
+
     # Edit layout
     fig.update_layout(title='Predictions',
                       yaxis_title='kWh',
                       plot_bgcolor='white',
 
                       yaxis=dict(
-                          showgrid=True,
-                          zeroline=True,
-                          showline=True,
-                          linecolor='rgb(204, 204, 204)',
+                          gridcolor='rgb(225, 225, 225)',
+                          gridwidth=0.25,
+                          linecolor='rgb(100, 100, 100)',
+                          linewidth=2,
                           showticklabels=True,
                           color='black'
                       ),
                       xaxis=dict(
-                          showline=True,
-                          showgrid=True,
-                          showticklabels=True,
-                          linecolor='rgb(204, 204, 204)',
+                          gridcolor='rgb(225, 225, 225)',
+                          gridwidth=0.25,
+                          linecolor='rgb(100, 100, 100)',
                           linewidth=2,
                           ticks='outside',
                           tickfont=dict(
@@ -185,6 +211,10 @@ def plot_predictions(df):
                           ),
                       )
                      )
+    # Use date string to set xaxis range
+    fig.update_layout(
+        xaxis_range=[date_range[0], date_range[1]],
+        )
 
     return fig
 
@@ -201,43 +231,44 @@ def index():
     """
 
 
-    # extract data needed for visuals
+    # Site ID counts
     site_counts = df['site_id'].value_counts().values
     site_id = df['site_id'].value_counts().index.to_list()
 
-    # extract data needed for visuals
+    # Building type counts
     bldg_type_counts = df['primary_use'].value_counts().values
     bldg_type = df['primary_use'].value_counts().index.to_list()
+
+    # Year Built
+
+
+    # Building Area (square feet)
 
     # create visuals
     graphs = [
         {
-            'data': [
-                Bar(x = site_id,
-                    y = site_counts)
-                ],
-
+            'data': [Bar(
+                x = site_id,
+                y = site_counts)],
             'layout': {
                 'title': 'Site ID Distribution',
                 'yaxis': {'title': "Count"},
                 'xaxis': {'title': "Site ID"}
-                }
+                },
             },
         {
-            'data': [
-                Bar(x = bldg_type,
-                    y = bldg_type_counts)
-                ],
+            'data': [Bar(
+                x = bldg_type,
+                y = bldg_type_counts)],
             'layout': {
                 'title': 'Building Type Distribution',
                 'yaxis': {'title': 'Count',
-                          'type': 'linear'
-                          },
+                          'type': 'linear'},
                 'xaxis': {'title': 'Category',
-                          'tickangle': -45,
-                          }
+                          'tickangle': -45,}
                 }
             },
+
         ]
 
     # encode plotly graphs in JSON
@@ -257,14 +288,12 @@ def go():
     the labels to screen.
     """
     # save user input in query
-    query_1 = request.args.get('query-1', 'NA')
-    query_2 = request.args.get('query-2', 'NA')
-    query_3 = request.args.get('query-3', '')
-    query_4 = request.args.get('query-4', '')
+    start_date = request.args.get('start_date', 'NA')
+    end_date = request.args.get('end_date', 'NA')
 
 
     # get predictions plot
-    fig = plot_predictions(df)
+    fig = plot_predictions(preds_df, date_range=(start_date, end_date))
 
     # encode plotly graphs in JSON
     graphJSON = fig.to_json()
@@ -272,10 +301,8 @@ def go():
     # This will render the go.html Please see that file.
     return render_template(
         'go.html',
-        query_1=query_1,
-        query_2=query_2,
-        query_3=query_3,
-        query_4=query_4,
+        start_date=start_date,
+        end_date=end_date,
         graphJSON=graphJSON
         # ids=ids,
         # graphJSON=graphJSON
