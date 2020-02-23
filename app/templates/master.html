@@ -39,27 +39,23 @@
         <p class="text-center">Kaggle Competition Turned Web App</p>
         <hr />
 
-        <!-- First Input, Row 1, Col 1 -->
-        <div class="row justify-content-md-center">
-            <div class="col-lg-3"></div>
-            <div class="col-lg-6 form-group-lg">
-			<p class="text-center">Please enter a date range to display predictions</p>
-                <form action="/go" method="get">
-                    <input type="numeric" class="form-control form-control-lg" name="start_date" placeholder="Start Date (YYY-MM-DD)">
-                    <input type="numeric" class="form-control form-control-lg" name="end_date" placeholder="End Date (YYY-MM-DD)">
-                    <div class="col-lg-center">
-                        <button type="submit" class="btn btn-primary btn-lg btn-block">Predict</button>
-                    </div>
-                </form>
-            </div>
-		</div>
+			<!-- First Input, Row 1, Col 1 -->
+			<div class="row justify-content-md-center">
+				<div class="col-lg-3"></div>
+				<div class="col-lg-6 form-group-lg">
+				<p class="text-center">Please enter a date range to display predictions</p>
+					<form action="/go" method="get">
+						<input type="numeric" class="form-control form-control-lg" name="start_date" placeholder="Start Date (YYY-MM-DD)">
+						<input type="numeric" class="form-control form-control-lg" name="end_date" placeholder="End Date (YYY-MM-DD)">
+						<div class="col-lg-center">
+							<button type="submit" class="btn btn-primary btn-lg btn-block">Show Predictions</button>
+						</div>
+					</form>
+				</div>
+			</div>
 
 
         </div>
-
-
-
-
         {% block message %}
         {% endblock %}
 
@@ -72,11 +68,13 @@
     {% block content %}
         <div class="page-header">
             <h1 class="text-center">Overview of Training Dataset</h1>
+			<p class="text-center">The plot below are only a brief overview of the data. To see a more detailed analysis please visit my GitHub profile.</p>
         </div>
     {% endblock %}
 
     {% for id in ids %}
         <div id="{{id}}"></div>
+		<div class="row"> = </div>
     {% endfor %}
 
 </div>
