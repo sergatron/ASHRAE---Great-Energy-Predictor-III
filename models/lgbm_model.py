@@ -4,6 +4,9 @@
 # # Compare ML Models
 
 # In[56]:
+
+import itertools
+
 import datetime
 import gc
 import time
@@ -196,13 +199,14 @@ def add_features(df):
     df['hour'] = df['timestamp'].dt.hour
     df['day'] = df['timestamp'].dt.day
     df['log_square_ft'] = np.log1p(df['square_feet'])
+    df['air_temp_cos'] = np.cos(df['air_temperature'])
+    df['air_temp_sin'] = np.sin(df['air_temperature'])
 
 def get_sample(df, n=0.5):
     n_sample = np.int32(df.shape[0] * n)
     return df.sample(n_sample)
 
 
-# In[65]:
 def save_model(model, filepath):
     """
 
@@ -290,10 +294,11 @@ def RMSLE(y_true, y_pred):
 
 def show_metrics(y_true, y_pred):
     # print params and metric
+    print('-' * 75)
     print('RMSLE:', np.round(RMSLE(y_true, y_pred), 4))
-    print('RMSE:', np.round(MSE(y_true, y_pred, squared=False), 4))
-    print('MAE:', np.round(MAE(y_true, y_pred), 4))
-    print('=' * 75)
+    print('RMSE: ', np.round(MSE(y_true, y_pred, squared=False), 4))
+    print('MAE:  ', np.round(MAE(y_true, y_pred), 4))
+    print('-' * 75)
     print('\n')
 
 # grid search function
@@ -323,7 +328,6 @@ def perform_grid_search(model, params, X_train, y_train, drop_feats=False, **kwa
 #%%
 def save_model(model, filepath):
     """
-
     Pickles model to given file path.
 
     Params:
@@ -346,7 +350,8 @@ def save_model(model, filepath):
         print('Failed to pickle model.')
 
 
-def build_model(X_train, y_train, X_test, y_test, params, plot=False):
+def build_model(X_train, y_train, X_test, y_test,
+                params, boost_rounds=1000, plot=False):
     categorical_features = ["building_id",
                             "site_id",
                             "meter",
@@ -368,7 +373,7 @@ def build_model(X_train, y_train, X_test, y_test, params, plot=False):
     # train model
     model = lgbm.train(params,
                       train_set=d_training,
-                      num_boost_round=1000,
+                      num_boost_round=boost_rounds,
                       valid_sets=[d_training, d_test],
                       verbose_eval=100,
                       early_stopping_rounds=50)
@@ -406,10 +411,10 @@ def train_cv_model(X, y, params, scale=False, n_splits=3):
         print('\nEvaluating Fold:', kfold)
 
         # define train data
-        X_train, y_train = X.loc[train_idx], y.loc[train_idx]
+        X_train, y_train = X.loc[train_idx, :], y.loc[train_idx, :]
 
         # define test data
-        X_test, y_test = X.loc[test_idx], y.loc[test_idx]
+        X_test, y_test = X.loc[test_idx, :], y.loc[test_idx, :]
 
         print('Filling missing data...\n')
         fill_nans(X_train), fill_nans(X_test)
@@ -428,10 +433,6 @@ def train_cv_model(X, y, params, scale=False, n_splits=3):
         y_pred = model.predict(X_test, num_iteration=model.best_iteration)
         y_pred_train= model.predict(X_train, num_iteration=model.best_iteration)
 
-        # score train and test sets
-        rmsle_test_score = RMSLE(y_test, y_pred)
-        rmsle_train_score = RMSLE(y_train, y_pred_train)
-
         # print metric
         print('\nTest Metrics:')
         show_metrics(y_test, y_pred)
@@ -439,6 +440,9 @@ def train_cv_model(X, y, params, scale=False, n_splits=3):
         print('\nTrain Metrics:')
         show_metrics(y_train, y_pred_train)
 
+        # score train and test sets
+        rmsle_test_score = RMSLE(y_test, y_pred)
+        rmsle_train_score = RMSLE(y_train, y_pred_train)
         # append scores
         train_rmsle = np.append(train_rmsle, rmsle_train_score)
         test_rmsle = np.append(test_rmsle, rmsle_test_score)
@@ -450,27 +454,42 @@ def train_cv_model(X, y, params, scale=False, n_splits=3):
 
     print('\nMean Train RMSLE:', np.mean(train_rmsle))
     print('Mean Test RMSLE:', np.mean(test_rmsle))
+    print('='*75)
+
+    # TODO:
+    metrics_df = pd.DataFrame()
+    metrics_df['train_rmsle'] = train_rmsle
+    metrics_df['test_rmsle'] = test_rmsle
+    return metrics_df
+
+
 
 
 #%%
-
-def main(data_sample=1.0, output_model=False,
-         out_path='predictions.npy', validate=False,
-         quantile=0.5):
+def load_data():
     # LOAD DATA
     print("Loading data...\n")
     train_df = pd.read_csv('../data/train.csv')
     building_df = pd.read_csv('../data/building_metadata.csv')
     weather_df = pd.read_csv('../data/weather_train.csv')
+    return train_df, building_df, weather_df
 
+def to_datetime(df, column, dt_format = "%Y-%m-%d %H:%M:%S"):
+    # Convert to Datetime
+    return pd.to_datetime(df[column], format=dt_format)
+
+
+
+def main(params, boost_rounds=1000, data_sample=1.0, output_model=False,
+         out_path='predictions.npy', output_model_path='lgbm_model_3.pkl', validate=False,
+         quantile=0.5):
+
+    # LOAD DATA
+    train_df, building_df, weather_df = load_data()
 
     # Convert to Datetime
-    dt_format = "%Y-%m-%d %H:%M:%S"
-    train_df['timestamp'] = pd.to_datetime(train_df['timestamp'],
-                                           format=dt_format)
-    weather_df['timestamp'] = pd.to_datetime(weather_df['timestamp'],
-                                             format=dt_format)
-
+    weather_df['timestamp'] = to_datetime(weather_df, 'timestamp')
+    train_df['timestamp'] = to_datetime(train_df, 'timestamp')
 
     # MERGE DATA
     tb_df = pd.merge(train_df, building_df, on='building_id')
@@ -482,10 +501,26 @@ def main(data_sample=1.0, output_model=False,
     X, y = get_X_y(df=all_df,
                    n=data_sample,
                    quantile=quantile,
-                   drop_1099=True,
                    filter_meter=True
                    )
 
+    # TRAIN/VALIDATE
+    # cross validate model with given params
+    if validate:
+        print('Performing cross-validation... \n')
+        validation_metrics_df = train_cv_model(
+            X,
+            y,
+            params=params,
+            scale=False,
+            n_splits=3)
+
+        print('Saving metrics and parameters... \n')
+
+        validation_metrics_df.to_csv("validation/metrics_df.csv", index=False)
+
+
+    # SPLIT DATA
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 
     print('Filling missing data...\n')
@@ -496,36 +531,15 @@ def main(data_sample=1.0, output_model=False,
 
     print('X-shape:', X.shape)
     print('\n')
-
-
     print('Training model...\n')
-
-    params = {
-        "objective": "regression",
-        "boosting": "gbdt",
-        "num_leaves": 2100,
-        "learning_rate": 0.08,
-        "feature_fraction": 0.85,
-        "reg_lambda": 2,
-        "metric": "rmse",
-    }
-
-
-    # cross validate model with given params
-    if validate:
-        train_cv_model(
-            X,
-            y,
-            params=params,
-            scale=False,
-            n_splits=3)
-
     # train new model
-    model = build_model(X_train, y_train, X_test, y_test, params, plot=True)
+    model = build_model(X_train, np.log1p(y_train), X_test, np.log1p(y_test),
+                        params, boost_rounds=boost_rounds,plot=True)
 
     # make predictions
-    y_pred = model.predict(X_test, num_iteration=model.best_iteration)
-    y_pred_train = model.predict(X_train, num_iteration=model.best_iteration)
+    print('Evaluating predictions... \n')
+    y_pred = np.expm1(model.predict(X_test, num_iteration=model.best_iteration))
+    y_pred_train = np.expm1(model.predict(X_train, num_iteration=model.best_iteration))
 
     print('\nTest Metrics:')
     show_metrics(y_test, y_pred)
@@ -535,44 +549,104 @@ def main(data_sample=1.0, output_model=False,
     if output_model:
         # save model to file
         print('Saving model... \n')
-        save_model(model, 'lgbm_model_2.pkl')
+        save_model(model, output_model_path)
 
         # save predictions to file
         print('Saving predictions array... \n')
-        np.save(out_path, y_pred)
+        np.save(out_path, y_pred_train)
         print('Saving complete!')
 
+
     print('All done!')
+    return RMSLE(y_test, y_pred)
 
 if __name__ == '__main__':
-    main(
-        # data_sample=1.0,
+
+    params = {
+        "objective": "regression",
+        "boosting": "gbdt",
+        "num_leaves": 1700,
+        "min_data_in_leaf": 25,
+        "learning_rate": 0.05,
+        "feature_fraction": 0.85,
+        "bagging_fraction": 0.85,
+        "bagging_freq": 100,
+        "reg_lambda": 3,
+        "metric": "rmse",
+        }
+
+    score = main(
+        params=params,
+        boost_rounds=1000,
+        data_sample=1.0,
         output_model=False,
-        quantile=0.6,
-        out_path='predictions.npy',
+        quantile=0.8,
+        out_path='train_predictions.npy',
         validate=False
         )
+
+    print('-'*75)
+    print('Performing Hyper-param search... \n')
+    # Hyperparameter grids
+    leaves_grid = [1000, 1700, 2400]
+    lambda_grid = [3]
+    min_data = [25, 50, 100]
+    results = {}
+
+    # For each couple in the grid
+    for leaves, lam, md in itertools.product(leaves_grid, lambda_grid, min_data):
+        params['num_leaves'] = leaves
+        params['reg_lambda'] = lam
+        params['min_data_in_leaf'] = md
+        print('\n')
+        print(params)
+        # execute model training
+        score = main(
+            params=params,
+            data_sample=1.0,
+            output_model=False,
+            quantile=0.7,
+            out_path='train_predictions.npy',
+            validate=False
+            )
+
+        results[leaves] = score
+        results[lam] = score
+        results[md] = score
+
+    print(results)
+        # TODO: record metrics for each param set;
+        #       pick params with best metric for Test Set
 
 #%%
 
 
-
+# TODO: Add Hyper-param Search capabilities
 # import itertools
 
 # # Hyperparameter grids
-# leaves_grid = [1800, 2000]
-# lambda_grid = [1, 2]
-# params = {}
+# leaves_grid = [1900, 2100]
+# lambda_grid = [2, 4]
+# results = {}
+# params = {
+#         "objective": "regression",
+#         "boosting": "gbdt",
+#         "num_leaves": 2100,
+#         "learning_rate": 0.08,
+#         "feature_fraction": 0.85,
+#         "reg_lambda": 2,
+#         "metric": "rmse",
+#         }
 
 # # For each couple in the grid
 # for leaves, lam in itertools.product(leaves_grid, lambda_grid):
-#     params = {'num_leaves': leaves,
-#               'reg_lambda': lam}
 #     params['num_leaves'] = leaves
 #     params['reg_lambda'] = lam
+#     print('\n')
+#     print(params)
+#     results[params['num_leaves']] = 95
+#     results[params['reg_lambda']] = 55
 
-#     with open("params.txt", "a") as write_file:
-#         write_file.write(str(params)+',')
 
 
 #%%
