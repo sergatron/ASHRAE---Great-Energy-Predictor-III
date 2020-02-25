@@ -199,8 +199,8 @@ def add_features(df):
     df['hour'] = df['timestamp'].dt.hour
     df['day'] = df['timestamp'].dt.day
     df['log_square_ft'] = np.log1p(df['square_feet'])
-    df['air_temp_cos'] = np.cos(df['air_temperature'])
-    df['air_temp_sin'] = np.sin(df['air_temperature'])
+    # df['air_temp_cos'] = np.cos(df['air_temperature'])
+    # df['air_temp_sin'] = np.sin(df['air_temperature'])
 
 def get_sample(df, n=0.5):
     n_sample = np.int32(df.shape[0] * n)
@@ -233,7 +233,7 @@ def save_model(model, filepath):
 
 def preprocess_data(df, quantile=0.5):
     # drop indices with building 1099
-    print('Dropping building ID 1099... \n')
+    print('Removing noisy data... \n')
     # get indices of building ID 1099
     idx = np.where(df['building_id'] == 1099)[0]
     # drop specified indices
@@ -241,10 +241,9 @@ def preprocess_data(df, quantile=0.5):
 
     # filter outliers
     # discard heavy use, and low energy usage
-    print(f"Using data within {quantile} quantile")
     q50 = df['meter_reading'].quantile(quantile)
-    df = df[(df['meter_reading'] < q50) &\
-            (df['meter_reading'] > 1)]
+    df = df[(df['meter_reading'] < q50)]
+            # (df['meter_reading'] > 0)]
 
     return df
 
@@ -533,13 +532,13 @@ def main(params, boost_rounds=1000, data_sample=1.0, output_model=False,
     print('\n')
     print('Training model...\n')
     # train new model
-    model = build_model(X_train, np.log1p(y_train), X_test, np.log1p(y_test),
+    model = build_model(X_train, (y_train), X_test, (y_test),
                         params, boost_rounds=boost_rounds,plot=True)
 
     # make predictions
     print('Evaluating predictions... \n')
-    y_pred = np.expm1(model.predict(X_test, num_iteration=model.best_iteration))
-    y_pred_train = np.expm1(model.predict(X_train, num_iteration=model.best_iteration))
+    y_pred = (model.predict(X_test, num_iteration=model.best_iteration))
+    y_pred_train = (model.predict(X_train, num_iteration=model.best_iteration))
 
     print('\nTest Metrics:')
     show_metrics(y_test, y_pred)
@@ -565,10 +564,10 @@ if __name__ == '__main__':
     params = {
         "objective": "regression",
         "boosting": "gbdt",
-        "num_leaves": 1700,
-        "min_data_in_leaf": 25,
+        "num_leaves": 1000,
+        "min_data_in_leaf": 200,
         "learning_rate": 0.05,
-        "feature_fraction": 0.85,
+        "feature_fraction": 0.8,
         "bagging_fraction": 0.85,
         "bagging_freq": 100,
         "reg_lambda": 3,
@@ -577,20 +576,21 @@ if __name__ == '__main__':
 
     score = main(
         params=params,
-        boost_rounds=1000,
-        data_sample=1.0,
+        boost_rounds=100,
+        data_sample=0.05,
         output_model=False,
         quantile=0.8,
         out_path='train_predictions.npy',
         validate=False
         )
 
-    print('-'*75)
-    print('Performing Hyper-param search... \n')
+    print('='*75)
+    print('Performing Hyper-param search... ')
+    print('='*75)
     # Hyperparameter grids
-    leaves_grid = [1000, 1700, 2400]
-    lambda_grid = [3]
-    min_data = [25, 50, 100]
+    leaves_grid = [1500]
+    lambda_grid = [5]
+    min_data = [500, 1000]
     results = {}
 
     # For each couple in the grid
@@ -603,30 +603,33 @@ if __name__ == '__main__':
         # execute model training
         score = main(
             params=params,
-            data_sample=1.0,
+            boost_rounds=100,
+            data_sample=0.05,
             output_model=False,
-            quantile=0.7,
+            quantile=0.8,
             out_path='train_predictions.npy',
             validate=False
             )
 
-        results[leaves] = score
-        results[lam] = score
-        results[md] = score
+        results[(leaves, lam, md)] = score
+    # sort output
+    best_params = sorted(results.items(),
+                         key=lambda x: x[1],
+                         reverse=True)[0][0]
 
-    print(results)
+    print('Best params', best_params)
         # TODO: record metrics for each param set;
         #       pick params with best metric for Test Set
 
 #%%
 
 
-# TODO: Add Hyper-param Search capabilities
+# # TODO: Add Hyper-param Search capabilities
 # import itertools
 
 # # Hyperparameter grids
 # leaves_grid = [1900, 2100]
-# lambda_grid = [2, 4]
+# lambda_grid = [2, 4, 6]
 # results = {}
 # params = {
 #         "objective": "regression",
@@ -638,15 +641,50 @@ if __name__ == '__main__':
 #         "metric": "rmse",
 #         }
 
+# params['num_leaves'] = [1900, 2100]
+# params['reg_lambda'] = [2, 4, 6]
+
 # # For each couple in the grid
 # for leaves, lam in itertools.product(leaves_grid, lambda_grid):
 #     params['num_leaves'] = leaves
 #     params['reg_lambda'] = lam
 #     print('\n')
 #     print(params)
-#     results[params['num_leaves']] = 95
-#     results[params['reg_lambda']] = 55
+#     results[(params['num_leaves'], params['reg_lambda'])] = score
+#     # results[params['reg_lambda']] = 55
 
+# # sort dict, return params with highest score
+# sorted(results.items(), key=lambda x: x[1], reverse=True)[0]
+
+#%%
+# # Hyperparameter grids
+# results = {}
+# params = {
+#         "objective": "regression",
+#         "boosting": "gbdt",
+#         "num_leaves": 2100,
+#         "learning_rate": 0.08,
+#         "feature_fraction": 0.85,
+#         "reg_lambda": 2,
+#         "metric": "rmse",
+#         }
+
+# params['num_leaves'] = [1900, 2100]
+# params['reg_lambda'] = [2, 4, 6]
+
+# # For each couple in the grid
+# for leaves, lam in itertools.product(params['num_leaves'], params['reg_lambda']):
+#     params['num_leaves'] = leaves
+#     params['reg_lambda'] = lam
+#     print('\n')
+#     print(params)
+#     results[(params['num_leaves'], params['reg_lambda'])] = np.random.choice([45,46,47,55])
+#     # results[params['reg_lambda']] = 55
+
+# # sort dict, return params with highest score
+# sorted(results.items(), key=lambda x: x[1], reverse=True)
+
+# sorted(results.items(), key=lambda x: x[1], reverse=True)[0][0]
 
 
 #%%
