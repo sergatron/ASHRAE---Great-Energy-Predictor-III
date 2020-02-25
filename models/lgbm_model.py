@@ -612,12 +612,12 @@ if __name__ == '__main__':
             )
 
         results[(leaves, lam, md)] = score
-    # sort output
+    # sort output, smallest value is best
     best_params = sorted(results.items(),
                          key=lambda x: x[1],
-                         reverse=True)[0][0]
+                         reverse=False)[0][0]
 
-    print('Best params', best_params)
+    print('Best params:', best_params)
         # TODO: record metrics for each param set;
         #       pick params with best metric for Test Set
 
