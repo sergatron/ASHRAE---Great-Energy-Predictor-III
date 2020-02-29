@@ -3,6 +3,14 @@ This is a capstone project for [Udacity's](https://www.udacity.com/) Data Scienc
 
 This competition aims to build counterfactual models to predict buildings' energy usage. A successful model should scale well and minimize the Root Mean Squared Log Error. Counterfactual models are estimates of energy usage *before* any improvements are made within the building. This estimate is then compared with the actual energy usage *after* the improvements to calculate energy usage and confirm that the improvements are in fact working.
 
+
+# Table of Contents
+- [**Project Summary**](https://github.com/sergatron/ASHRAE---Great-Energy-Predictor-III/blob/master/Project_Overview.md)
+- [**Exploratory Data Analysis (EDA)**](https://github.com/sergatron/ASHRAE---Great-Energy-Predictor-III/blob/master/EDA/eda.ipynb)
+- [**ML model notebook**](https://github.com/sergatron/ASHRAE---Great-Energy-Predictor-III/blob/master/models/model_nb.ipynb)
+- [**ML last model script**](https://github.com/sergatron/ASHRAE---Great-Energy-Predictor-III/blob/master/models/lgbm_model.py)
+
+
 # Structure
 ```
 ashrae_capstone
@@ -38,12 +46,6 @@ ashrae_capstone
              |__ xgboost_kfold_metrics_df.csv
             
   ```
-
-# Table of Contents
-- [**Project Summary**](https://github.com/sergatron/ASHRAE---Great-Energy-Predictor-III/blob/master/Project_Overview.md)
-- [**Exploratory Data Analysis (EDA)**](https://github.com/sergatron/ASHRAE---Great-Energy-Predictor-III/blob/master/EDA/eda.ipynb)
-- [**ML model notebook**](https://github.com/sergatron/ASHRAE---Great-Energy-Predictor-III/blob/master/models/model_nb.ipynb)
-- [**ML last model script**](https://github.com/sergatron/ASHRAE---Great-Energy-Predictor-III/blob/master/models/lgbm_model.py)
 
 
 # Usage
@@ -99,7 +101,9 @@ python app/run.py
 
 # File Description
  - **app/**: scripts and html templates for the web app
+ - **data/**: data files, *csv* format
  - **cleaning/**: Jupyter Notebook to test cleaning functions
+ - **EDA/**: Jupyter Notebook with Exploratory Data Analysis
  - **models/**: scripts to build and evaluate ML models. Also contains output *CSV* files of evaluation metrics.
 
 # Acknowledgements
