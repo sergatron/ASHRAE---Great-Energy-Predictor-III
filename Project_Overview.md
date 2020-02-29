@@ -70,13 +70,14 @@ Accuracy is an important aspect of the model, however, it is also important to o
 
 ## Results
 ### Model Evaluation and Validation
-KFold cross-validation was used to validate the model's results. LightGBM was used to create the final model as it performed better than XGBoost, that is, it offered a lower error on the test subset with k-fold cross-validation. The best/lowest RMSLE achieved was 0.266 by the LightGBM model as opposed to XGBoost which achieved RMSLE of 0.478 and took much longer to train.
+KFold cross-validation was used to validate the model's results. LightGBM was used to create the final model as it performed better than XGBoost, that is, it offered a lower error on the test subset with five-fold cross-validation. The best/lowest RMSLE achieved was 0.266 by the LightGBM model as opposed to XGBoost which achieved RMSLE of 0.478 and took much longer to train.
 
 
-To minimize the error further, hyper-parameters were tuned with the use of grid search. In particular, tuned parameters were `num_leaves`, `n_estimators`, `num_boost_round`, `learning_rate` and `reg_lambda`. An optimal combination of these parameters would, in theory, provide a robust model that achieves minimal error on unseen data and does not overfit. Complexity of the model is controlled by `num_leaves` and `n_estimators` in this case. [3]
+To minimize the error further, hyper-parameters were tuned with the use of grid search. In particular, tuned parameters were `num_leaves`, `n_estimators`, `num_boost_round`, `learning_rate` and `reg_lambda`. An optimal combination of these parameters would, in theory, provide a robust model that achieves minimal error on unseen data and does not overfit. Complexity of the model is controlled by `num_leaves` and `n_estimators` in this case. The number of decision trees grown is controlled by `n_stimators` and by defualt is set to 100. Reducing this value should reduce the complexity of the model and combat overfitting. Number of leaves is the main parameter to control for complexity. [3]
 
 
-Additionally, `early_stopping_rounds` parameter will stop training when a metric has not improved in some number of rounds on the evaluation subset. This can prevent the model from overfitting because if it's allowed to continue training for the entire specififed number of rounds, then it will continue making improvements on the training subset even though there has been no improvement on the evaluation subset.
+
+Additionally, `early_stopping_rounds` parameter will stop training when a metric has not improved in some number of rounds on the evaluation subset. This can prevent the model from overfitting because if it's allowed to continue training for the entire specified number of rounds, then it will continue making improvements on the training subset even though there has been no improvement on the evaluation subset.
 
 
 In terms of regularization, `reg_lambda`, an alias for L2-loss, controls the regularization of the model. Increasing this value limits the complexity by adding a penalty to the loss function and preventing the model from fitting to the noise. In turn, this penalty may improve the model's ability to discover the true signal and ignore the noise.
@@ -100,6 +101,8 @@ Tuned Hyper-parameters:
 
 ## Conclusion
 ### Reflection
+Reducing energy usage of a building is important for various reasons including financial and environmental impact. This is a practical problem to solve but may require challenging solutions. 
+
 ### Improvement
 There are numerous other methods which may improve the model further. One such method is build multiple models, one model for each meter type, electric, chilled water, hot water, and steam. Building a model for each meter may lower the error if the model is better able to capture the seasonal trend that exists for meters such as steam and chilled water. The resulting four models may be a bit more difficult to evaluate as opposed to having a single model. Each model may have its own set of hyper-parameters to optimize, and must be cross-validated. However, it is possible that the error will reduced further with these four models. Another method is to build a model each site. This would result in creating 16 individual models and again would provide its own set of difficulties that come with evaluating mutlitple models.
 
