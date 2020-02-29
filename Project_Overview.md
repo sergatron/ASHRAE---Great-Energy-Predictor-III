@@ -18,12 +18,12 @@ The goal is to create a model which can predict a building's energy use with min
 
 
 ### Metrics
-The model will aim to minimize the Root Mean Squared Log Error. It is defined as 
+The model will aim to minimize the **Root Mean Squared Log Error** (RMSLE). It is defined as 
 
 ![](img/rmsle_metric.png)
 
 
-where $Xi$ are the predicted values and $Yi$ are the Actual values. Logarithmic properties lets us rewrite this as
+where ***Xi*** are the predicted values and ***Yi*** are the Actual values. Logarithmic properties lets us rewrite this as
 
 ![](img/log_p_a.png)
 
@@ -51,7 +51,7 @@ In order to minimize model's error, removing noisy samples and features was of u
 
 ### Implementation
 Two models were built and evaluated using this general process:
-1. Merge data
+1. Merge data (train, buildings, weather)
 2. Split data into K-Folds
 3. For each fold:
     - Fill missing values on train and test data
@@ -60,7 +60,7 @@ Two models were built and evaluated using this general process:
     - Evaluate predictions
 4. Record/Log metrics
 
-The algorithms used were LightGBM and XGBoost for their scalability. Initial model parameters were chosen based on documentation for Best Accuracy as well as Kaggle [kernel](https://www.kaggle.com/purist1024/ashrae-simple-data-cleanup-lb-1-08-no-leaks). Ultimately, the goal was to minimize the RMSLE error on the test subset. New features were generated from the `timestamp` variable, specifically, day, month, hour, and day of the week were extracted. To avoid data leakage, filling missing values was accomplished during cross-validation so as to avoid using aggregated statistics from the entire feature space *X* within the training data. Evaluation metrics were saved to a *csv* file containg test set values of RMSLE, RMSE, and MAE. Addtionally, a plot was produced displaying feature importance as determined by the algorithm. 
+The algorithms used were LightGBM and XGBoost for their scalability. Initial model parameters were chosen based on documentation for "Best Accuracy" as well as [Kaggle kernel](https://www.kaggle.com/purist1024/ashrae-simple-data-cleanup-lb-1-08-no-leaks). Ultimately, the goal was to minimize the RMSLE error on the test subset. New features were generated from the `timestamp` variable, specifically, day, month, hour, and day of the week were extracted. To avoid data leakage, filling missing values was accomplished during cross-validation so as to avoid using aggregated statistics from the entire feature space *X* within the training data. Evaluation metrics were saved to a *csv* file containg test set values of RMSLE, RMSE, and MAE. Addtionally, a plot was produced displaying feature importance as determined by the algorithm. 
 
 
 ### Refinement
@@ -79,7 +79,7 @@ To minimize the error further, hyper-parameters were tuned with the use of grid 
 Additionally, `early_stopping_rounds` parameter will stop training when a metric has not improved in some number of rounds on the evaluation subset. This can prevent the model from overfitting because if it's allowed to continue training for the entire specififed number of rounds, then it will continue making improvements on the training subset even though there has been no improvement on the evaluation subset.
 
 
-In terms of regularization, `reg_lambda`, an alias for L2 loss, controls the regularization of the model. Increasing this value limits the complexity by preventing the model from fitting to the noise and improve its ability to discover the true signal. 
+In terms of regularization, `reg_lambda`, an alias for L2-loss, controls the regularization of the model. Increasing this value limits the complexity by adding a penalty to the loss function and preventing the model from fitting to the noise. In turn, this penalty may improve the model's ability to discover the true signal and ignore the noise.
 
 
 Parameters `num_boost_round` and `learning_rate` are inversely proportional and also can control overfitting. A very small `learning_rate` value may provide the best accuracy but that would require an increase in `num_boost_round`. This essentially will allow the model to take small steps towards minimizing the error but at the cost of increasing the number of iterations taken to reach the minimum. Settings the `num_boost_round` to a large value, and `learning_rate` to a small value, would allow the model to converge on the minimum error but then it's more likely to overfit. Therefore, finding the optimal values between these parameters allows the model to reach a reasonable error rate within a given amount of iterations. [4]
