@@ -1,9 +1,5 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# # Compare ML Models
-
-# In[56]:
+import itertools
+import time
 import datetime
 import gc
 import time
@@ -12,20 +8,20 @@ from joblib import dump, load
 
 import pandas as pd
 import numpy as np
+import lightgbm as lgbm
 import xgboost as xgb
 
 import matplotlib.pyplot as plt
+from matplotlib import rcParams
 
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.model_selection import KFold, train_test_split, cross_val_score, GridSearchCV
 from sklearn.metrics import mean_squared_error as MSE
 from sklearn.metrics import mean_absolute_error as MAE
-from sklearn.metrics import make_scorer
 
 from sklearn.pipeline import make_pipeline
-from sklearn.ensemble import RandomForestRegressor, BaggingRegressor
 from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler, QuantileTransformer
+from sklearn.preprocessing import StandardScaler
 
 from pandas.api.types import is_datetime64_any_dtype as is_datetime
 from pandas.api.types import is_categorical_dtype
@@ -33,6 +29,28 @@ from pandas.api.types import is_categorical_dtype
 
 # In[57]:
 
+plt.style.use('seaborn-white')
+rcParams['axes.labelsize'] = 'x-large'
+rcParams['axes.edgecolor'] = 'black'
+rcParams['axes.facecolor'] = 'white'
+rcParams['axes.titlesize'] = 'x-large'
+rcParams['axes.spines.top'] = False
+rcParams['axes.spines.right'] = False
+rcParams['axes.xmargin'] = 0.02
+rcParams['axes.ymargin'] = 0.02
+
+rcParams['axes.grid'] = True
+rcParams['grid.linestyle'] = ':'
+rcParams['grid.alpha'] = 0.2
+rcParams['grid.color'] = 'black'
+
+rcParams['figure.titlesize'] = 'x-large'
+rcParams['figure.edgecolor']= 'black'
+rcParams['figure.facecolor'] = 'white'
+rcParams['figure.figsize'] = [12, 8]
+
+rcParams['ytick.labelsize'] = 'large'
+rcParams['xtick.labelsize'] = 'large'
 
 # format float in pandas
 pd.options.display.float_format = '{:.4f}'.format
@@ -174,41 +192,19 @@ def add_features(df):
     df['month'] = df['timestamp'].dt.month
     df['hour'] = df['timestamp'].dt.hour
     df['day'] = df['timestamp'].dt.day
+    df['day_of_week'] = df['timestamp'].dt.weekday
     df['log_square_ft'] = np.log1p(df['square_feet'])
+    # df['air_temp_cos'] = np.cos(df['air_temperature'])
+    # df['air_temp_sin'] = np.sin(df['air_temperature'])
 
 def get_sample(df, n=0.5):
     n_sample = np.int32(df.shape[0] * n)
     return df.sample(n_sample)
 
 
-# In[65]:
-def save_model(model, filepath):
-    """
-
-    Pickles model to given file path.
-
-    Params:
-    -------
-        model: Pipeline
-            Model to pickle.
-
-        filepath: str
-            save model to this directory
-
-    Returns:
-    -------
-        None.
-
-    """
-    try:
-        dump(model, filepath)
-    except Exception as e:
-        print(e)
-        print('Failed to pickle model.')
-
-def preprocess_data(df):
+def preprocess_data(df, quantile=0.6):
     # drop indices with building 1099
-    print('Dropping building ID 1099... \n')
+    print('Removing noisy data... \n')
     # get indices of building ID 1099
     idx = np.where(df['building_id'] == 1099)[0]
     # drop specified indices
@@ -216,31 +212,18 @@ def preprocess_data(df):
 
     # filter outliers
     # discard heavy use, and low energy usage
-    q50 = df['meter_reading'].quantile(0.5)
-    df = df[(df['meter_reading'] < q50) &\
-            (df['meter_reading'] > 1)]
+    q = df['meter_reading'].quantile(quantile)
+    df = df[(df['meter_reading'] < q) & \
+            (df['meter_reading'] >= 1.0)]
 
     return df
 
-def get_X_y(df, n=1.0, drop_1099=False, filter_meter=False):
-
-    # drop indices with building 1099
-    if drop_1099:
-        print('Dropping building ID 1099... \n')
-        # get indices of building ID 1099
-        idx = np.where(df['building_id'] == 1099)[0]
-        # drop specified indices
-        df = df.drop(idx, axis=0)
-
+def get_X_y(df, n=1.0, quantile=0.6, filter_meter=True):
 
     # filter outliers
     # discard heavy use, and low energy usage
     if filter_meter:
-        q50 = df['meter_reading'].quantile(0.5)
-        # q15 = df['meter_reading'].quantile(0.15)
-
-        df = df[(df['meter_reading'] < q50) &\
-                (df['meter_reading'] > 1)]
+        df = preprocess_data(df, quantile=quantile)
 
     # sample size
     if n < 1.0:
@@ -256,7 +239,11 @@ def get_X_y(df, n=1.0, drop_1099=False, filter_meter=False):
 
 
     # drop features
-    drop_cols = ['timestamp', 'year_built', 'floor_count']
+    # NOTE: drop `primary_use` for XGBoost
+    drop_cols = ['timestamp', 'year_built', 'floor_count',
+                 'precip_depth_1_hr', 'wind_speed', 'wind_direction',
+                 'cloud_coverage', 'primary_use']
+
     df.drop(drop_cols, axis=1, inplace=True)
 
     # reduce memory usage
@@ -281,11 +268,11 @@ def RMSLE(y_true, y_pred):
 
 def show_metrics(y_true, y_pred):
     # print params and metric
+    print('-' * 75)
     print('RMSLE:', np.round(RMSLE(y_true, y_pred), 4))
-    print('RMSE:', np.round(MSE(y_true, y_pred, squared=False), 4))
-    print('MAE:', np.round(MAE(y_true, y_pred), 4))
-    print('=' * 75)
-    print('\n')
+    print('RMSE: ', np.round(MSE(y_true, y_pred, squared=False), 4))
+    print('MAE:  ', np.round(MAE(y_true, y_pred), 4))
+    print('-' * 75)
 
 # grid search function
 def perform_grid_search(model, params, X_train, y_train, drop_feats=False, **kwargs):
@@ -311,29 +298,122 @@ def perform_grid_search(model, params, X_train, y_train, drop_feats=False, **kwa
 
     return gs_cv
 
-#%%
+def save_model(model, filepath):
+    """
+    Pickles model to given file path.
+
+    Params:
+    -------
+        model: Pipeline
+            Model to pickle.
+
+        filepath: str
+            save model to this directory
+
+    Returns:
+    -------
+        None.
+
+    """
+    try:
+        dump(model, filepath)
+    except Exception as e:
+        print(e)
+        print('Failed to pickle model.')
 
 
+def train_lgbm_model(X_train, y_train, X_test, y_test,
+                params, boost_rounds=1000, plot=False):
 
-def train_model(params, scale=False, n_splits=3):
+
+    categorical_features = ["building_id",
+                            "site_id",
+                            "meter",
+                            "primary_use",
+                            ]
+    # lgbm train data
+    d_training = lgbm.Dataset(X_train,
+                              label=y_train,
+                              categorical_feature=categorical_features,
+                              free_raw_data=False
+                              )
+    # lgbm test data
+    d_test = lgbm.Dataset(X_test,
+                          label=y_test,
+                          categorical_feature=categorical_features,
+                          free_raw_data=False
+                          )
+
+    # train model
+    model = lgbm.train(params,
+                      train_set=d_training,
+                      num_boost_round=boost_rounds,
+                      valid_sets=[d_training, d_test],
+                      verbose_eval=100,
+                      early_stopping_rounds=50)
+    if plot:
+        # plot feature importance
+        lgbm.plot_importance(model);
+
+    del X_train, X_test, y_train, y_test, d_training, d_test
+    gc.collect()
+
+    return model
+
+def train_xgboost_model(X_train, y_train, X_test, y_test, params,
+                        boost_rounds=500, plot=False):
+
+    # xgboost train data
+    d_training = xgb.DMatrix(X_train, label=y_train)
+    # xgboost test data
+    d_test = xgb.DMatrix(X_test, label=y_test)
+
+    # define evaluation method
+    evallist = [(d_training, 'train'), (d_test, 'eval')]
+
+    print('\nTraining XGBoost model... \n')
+    # train model
+    model = xgb.train(params,
+                      dtrain=d_training,
+                      num_boost_round=boost_rounds,
+                      evals=evallist,
+                      early_stopping_rounds=50,
+                      verbose_eval=100,
+
+                      )
+    if plot:
+        # plot feature importance
+        xgb.plot_importance(model);
+
+    del X_train, X_test, y_train, y_test, d_training, d_test
+    gc.collect()
+
+    return model
+
+
+def train_cv_model(X, y, params, boost_rounds=500, scale=False, n_splits=4):
 
     # pipeline to transform data
     scaler = StandardScaler()
-    pca = PCA(n_components=3, random_state=11)
+    # pca = PCA(n_components=3, random_state=11)
     transfomer = make_pipeline(
         scaler,
         # pca
         )
 
     # create splits
-    kf = KFold(n_splits=n_splits)
+    kf = KFold(n_splits=n_splits, shuffle=True, random_state=11)
     # models = []
 
     # instantiate metric arrays
     train_rmsle = np.array([])
     test_rmsle = np.array([])
-
+    # predictions = np.array([])
+    kfold = 0
     for train_idx, test_idx in kf.split(X):
+        print('\n')
+        print('-'*75)
+        print('\nEvaluating Fold:', kfold)
 
         # define train data
         X_train, y_train = X.loc[train_idx], y.loc[train_idx]
@@ -349,30 +429,29 @@ def train_model(params, scale=False, n_splits=3):
             X_train = transfomer.fit_transform(X_train)
             X_test = transfomer.fit_transform(X_test)
 
-        # lgbm train data
+        # xgboost train data
         d_training = xgb.DMatrix(X_train, label=y_train)
-        # lgbm test data
+        # xgboost test data
         d_test = xgb.DMatrix(X_test, label=y_test)
 
-        evallist = [(d_test, 'eval'), (d_training, 'train')]
+        # define evaluation method
+        evallist = [(d_training, 'train'), (d_test, 'eval')]
 
-        print('\nTraining model... \n')
+        print('\nTraining XGBoost model... \n')
         # train model
         model = xgb.train(params,
                           dtrain=d_training,
-                          num_boost_round=200,
+                          num_boost_round=boost_rounds,
                           evals=evallist,
-                          early_stopping_rounds=25,
+                          early_stopping_rounds=50,
                           verbose_eval=100,
 
                           )
-        # make predictions
-        y_pred = model.predict(d_test)
-        y_pred_train= model.predict(d_training)
 
-        # score train and test sets
-        rmsle_test_score = RMSLE(y_test, y_pred)
-        rmsle_train_score = RMSLE(y_train, y_pred_train)
+        print('Evaluating predictions... \n')
+        # make predictions
+        y_pred = (model.predict(d_test))
+        y_pred_train = (model.predict(d_training))
 
         # print metric
         print('\nTest Metrics:')
@@ -381,105 +460,274 @@ def train_model(params, scale=False, n_splits=3):
         print('\nTrain Metrics:')
         show_metrics(y_train, y_pred_train)
 
+        # score train and test sets
+        rmsle_test_score = RMSLE(y_test, y_pred)
+        rmsle_train_score = RMSLE(y_train, y_pred_train)
         # append scores
         train_rmsle = np.append(train_rmsle, rmsle_train_score)
         test_rmsle = np.append(test_rmsle, rmsle_test_score)
 
-        del X_train, X_test, y_train, y_test, d_training, d_test
+        del X_train, X_test, y_train, y_test, model, y_pred, y_pred_train
         gc.collect()
+
+        kfold += 1
 
     print('\nMean Train RMSLE:', np.mean(train_rmsle))
     print('Mean Test RMSLE:', np.mean(test_rmsle))
+    print('='*75)
+
+    # save metrics
+    metrics_df = pd.DataFrame()
+    metrics_df['train_rmsle'] = train_rmsle
+    metrics_df['test_rmsle'] = test_rmsle
+    metrics_df['num_folds'] = [n_splits] * train_rmsle.shape[0]
+    metrics_df.to_csv('xgb_kfold_metrics_df.csv', encoding='utf-8', index=False)
+    return metrics_df
+
+
+
 
 #%%
-
-if __name__ == '__main__':
-    # Load data
+def load_data():
+    # LOAD DATA
     print("Loading data...\n")
     train_df = pd.read_csv('../data/train.csv')
     building_df = pd.read_csv('../data/building_metadata.csv')
     weather_df = pd.read_csv('../data/weather_train.csv')
+    return train_df, building_df, weather_df
 
+def to_datetime(df, column, dt_format = "%Y-%m-%d %H:%M:%S"):
+    # Convert to Datetime
+    return pd.to_datetime(df[column], format=dt_format)
+
+
+
+def main(params, boost_rounds=500, data_sample=1.0, output_model=False,
+         out_arr_path='predictions.npy', output_model_path='xgb_model.pkl',
+         validate=False, quantile=0.5, scale=False, cv_splits=3):
+
+    # LOAD DATA
+    train_df, building_df, weather_df = load_data()
 
     # Convert to Datetime
-    dt_format = "%Y-%m-%d %H:%M:%S"
-    train_df['timestamp'] = pd.to_datetime(train_df['timestamp'],
-                                           format=dt_format)
-    weather_df['timestamp'] = pd.to_datetime(weather_df['timestamp'],
-                                             format=dt_format)
+    weather_df['timestamp'] = to_datetime(weather_df, 'timestamp')
+    train_df['timestamp'] = to_datetime(train_df, 'timestamp')
 
-
-    # Merge Data
+    # MERGE DATA
     tb_df = pd.merge(train_df, building_df, on='building_id')
     all_df = pd.merge(tb_df, weather_df, on=['site_id', 'timestamp'])
     del train_df, building_df, weather_df, tb_df
 
+    # PROCESS DATA
+    # define x, and y
+    X, y = get_X_y(df=all_df,
+                   n=data_sample,
+                   quantile=quantile,
+                   filter_meter=True
+                   )
 
-    # define feature space and target
-    X, y = get_X_y(df=all_df, n=0.15, drop_1099=True, filter_meter=True)
-    # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15)
+    # TRAIN/VALIDATE
+    # cross validate model with given params
+    if validate:
+        print('Performing cross-validation... \n')
+        validation_metrics_df = train_cv_model(
+            X,
+            y,
+            params=params,
+            boost_rounds=boost_rounds,
+            scale=scale,
+            n_splits=cv_splits)
 
-    print("Dropping features: [primary_use]")
-    X.drop(['primary_use'], axis=1, inplace=True)
+        print('Saving metrics and parameters... \n')
+
+        validation_metrics_df.to_csv("xgb_kfold_metrics_df.csv", index=False)
+
+
+    # SPLIT DATA
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
+
+
+    print('Filling missing data...\n')
+    fill_nans(X_train), fill_nans(X_test)
+
+    # print("Dropping features: [primary_use]")
+    # X.drop(['primary_use'], axis=1, inplace=True)
 
     print('X-shape:', X.shape)
     print('\n')
 
-    params = dict(
-            obj='regression',
-            feval=RMSLE,
-            n_estimators=50,
-            max_depth=10,
-            min_child_weight=3,
-            eta=0.75,
-            subsample=0.8,
-            gamma=3,
+    print('Training model...\n')
+    # xgboost train data
+    d_training = xgb.DMatrix(X_train, label=y_train)
+    # xgboost test data
+    d_test = xgb.DMatrix(X_test, label=y_test)
 
-            )
+    # define evaluation method
+    evallist = [(d_training, 'train'), (d_test, 'eval')]
 
-    train_model(params=params, scale=False, n_splits=2)
+    print('\nTraining XGBoost model... \n')
+    # train model
+    model = xgb.train(params,
+                      dtrain=d_training,
+                      num_boost_round=boost_rounds,
+                      evals=evallist,
+                      early_stopping_rounds=50,
+                      verbose_eval=100,
+
+                      )
+
+    # make predictions
+    print('Evaluating predictions... \n')
+    y_pred = (model.predict(d_test))
+    y_pred_train = (model.predict(d_training))
+
+    print('\nTest Metrics:')
+    show_metrics(y_test, y_pred)
+    print('\nTrain Metrics:')
+    show_metrics(y_train, y_pred_train)
+
+    if output_model:
+        # save model to file
+        print('Saving model... \n')
+        save_model(model, output_model_path)
+
+        # # save predictions to file
+        # print('Saving predictions array... \n')
+        # np.save(out_arr_path, y_pred_train)
+        # print('Saving complete!')
+
+    # write results to DataFrame
+    results_rf = pd.DataFrame({'rmsle_score': [RMSLE(y_test, y_pred)],
+                               'RMSE': [MSE(y_test, y_pred, squared=False)],
+                               'MAE': [MAE(y_test, y_pred)],
+                                'model_name': ['xgboost']
+                               })
+
+    results_rf.to_csv('xgb_results.csv', encoding='utf-8', index=False)
+
+    print('All done!')
+    return RMSLE(y_test, y_pred)
+
+
+if __name__ == '__main__':
+
+    xgb_params = dict(
+        obj='regression',
+        feval=RMSLE,
+        tree_method='hist',
+        n_estimators=80,
+        max_depth=10,
+        min_child_weight=3,
+        eta=0.5,
+        subsample=0.7,
+        gamma=4,
+
+        )
+
+    start_time = time.perf_counter()
+
+    # execute main function
+    score = main(
+        params=xgb_params,
+        boost_rounds=200,
+        data_sample=1.0,
+        output_model=True,
+        output_model_path='xgb_model_.pkl',
+        quantile=0.6,
+        scale=False,
+        out_arr_path='xgb_train_predictions.npy',
+        validate=False,
+        cv_splits=3
+        )
+    end_time = time.perf_counter()
+
+    print('\nTime elapsed:', np.round((end_time - start_time)/60, 4), 'minutes.')
+    print('-'*75)
+
+    # # HYPER-PARAM SEARCH
+    # # print('='*75)
+    # print('Performing Hyper-param search... ')
+    # print('='*75)
+    # # Hyperparameter grids
+    # input_param = {'num_leaves': [1800, 2100],
+    #                 'n_estimators': [60, 80],
+    #                 "reg_lambda": [2, 4],
+
+    #                 }
+    # results = {}
+
+
+    # # For each couple in the grid
+    # for var1, var2, var3 in itertools.product(input_param['num_leaves'],
+    #                                     input_param['reg_lambda'],
+    #                                     input_param['n_estimators']):
+    #     params['num_leaves'] = var1
+    #     params['n_estimators'] = var3
+    #     params['reg_lambda'] = var2
+    #     print('\n')
+    #     print(params)
+    #     # execute model training
+    #     score = main(
+    #         params=params,
+    #         boost_rounds=800,
+    #         data_sample=1.0,
+    #         output_model=False,
+    #         output_model_path='lgbm_model.pkl',
+    #         quantile=0.7,
+    #         scale=False,
+    #         out_arr_path='train_predictions.npy',
+    #         validate=False
+    #         )
+
+    # results[(var1, var2, var3)] = score
+    # # sort output, smallest value is best
+    # best_params = sorted(results.items(),
+    #                       key=lambda x: x[1],
+    #                       reverse=False)[0][0]
+
+    # print('\nBest params:', best_params)
+    #     # TODO: record metrics for each param set;
+    #     #       pick params with best metric for Test Set
+
 
 #%%
 
+
+# # TODO: Add Hyper-param Search capabilities
 # import itertools
 
-# params_full = dict(
-#             obj='regression',
-#             # feval=RMSLE,
-#             max_depth=16,
-#             min_child_weight=3,
-#             eta=0.06,
-#             subsample=0.8,
-#             gamma=3,
-#             )
-
 # # Hyperparameter grids
-# max_depth_grid = [10, 16]
-# gamma_grid = [2]
+# leaves_grid = [1900, 2100]
+# lambda_grid = [2, 4, 6]
+# results = {}
+# params = {
+#         "objective": "regression",
+#         "boosting": "gbdt",
+#         "num_leaves": 2100,
+#         "learning_rate": 0.08,
+#         "feature_fraction": 0.85,
+#         "reg_lambda": 2,
+#         "metric": "rmse",
+#         }
+
+# params['num_leaves'] = [1900, 2100]
+# params['reg_lambda'] = [2, 4, 6]
 
 # # For each couple in the grid
-# for depth, gam in itertools.product(max_depth_grid, gamma_grid):
-#     params = dict(
-#             obj='regression',
-#             # feval=RMSLE,
-#             max_depth=depth,
-#             min_child_weight=3,
-#             eta=0.06,
-#             subsample=0.8,
-#             gamma=gam,
-#             )
+# for leaves, lam in itertools.product(leaves_grid, lambda_grid):
+#     params['num_leaves'] = leaves
+#     params['reg_lambda'] = lam
+#     print('\n')
 #     print(params)
+#     results[(params['num_leaves'], params['reg_lambda'])] = score
+#     # results[params['reg_lambda']] = 55
 
-# plt.scatter(y=train_rmsle, x=np.arange(len(test_rmsle)), label='Train')
-# plt.scatter(y=test_rmsle, x=np.arange(len(test_rmsle)), label='Test', color='green')
-# plt.show()
+# # sort dict, return params with highest score
+# sorted(results.items(), key=lambda x: x[1], reverse=True)[0]
 
 
 #%%
-
-
-
-
 
 
 # # output results to a file
