@@ -40,6 +40,7 @@ ashrae_capstone
   ```
 
 # Table of Contents
+- [**Project Summary**](https://github.com/sergatron/ASHRAE---Great-Energy-Predictor-III/blob/master/Project_Overview.md)
 - [**Exploratory Data Analysis (EDA)**](https://github.com/sergatron/ASHRAE---Great-Energy-Predictor-III/blob/master/EDA/eda.ipynb)
 - [**ML model notebook**](https://github.com/sergatron/ASHRAE---Great-Energy-Predictor-III/blob/master/models/model_nb.ipynb)
 - [**ML last model script**](https://github.com/sergatron/ASHRAE---Great-Energy-Predictor-III/blob/master/models/lgbm_model.py)
