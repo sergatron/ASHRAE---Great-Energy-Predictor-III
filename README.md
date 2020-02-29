@@ -1,7 +1,7 @@
 # Building Energy Usage Modeling
-This is a capstone project for [Udacity's](https://www.udacity.com/) Data Science Nanodegree program and also is a Kaggle competition.
+This is a capstone project for [Udacity's](https://www.udacity.com/) Data Science Nanodegree program based on a [Kaggle competition](https://www.kaggle.com/c/ashrae-energy-prediction/overview).
 
-Competition [link](https://www.kaggle.com/c/ashrae-energy-prediction/overview)
+This competition aims to build counterfactual models to predict buildings' energy usage. A successful model should scale well and minimize the Root Mean Squared Log Error. Counterfactual models are estimates of energy usage *before* any improvements are made within the building. This estimate is then compared with the actual energy usage *after* the improvements to calculate energy usage and confirm that the improvements are in fact working.
 
 # Structure
 ```
@@ -102,6 +102,6 @@ python app/run.py
  - **models/**: scripts to build and evaluate ML models. Also contains output *CSV* files of evaluation metrics.
 
 # Acknowledgements
-[Udacity](https://www.udacity.com/) Data Science Nanodegree 
-[Kaggle](https://www.kaggle.com/c/ashrae-energy-prediction/overview) competition 
+- [Udacity](https://www.udacity.com/) Data Science Nanodegree 
+- [Kaggle](https://www.kaggle.com/c/ashrae-energy-prediction/overview) competition 
 
