@@ -40,7 +40,7 @@ The table above helps visualize the difference between the two metrics. RMSLE is
 
 ## Analysis
 ### Data Exploration and Visualization
-Please refer to Jupyter Notebook **LINK** for analysis and visualizations.
+Please refer to Jupyter Notebook [**EDA**](https://github.com/sergatron/ASHRAE---Great-Energy-Predictor-III/blob/master/EDA/eda.ipynb) for analysis and visualizations.
 
 
 ## Methodology
@@ -60,7 +60,7 @@ Two models were built and evaluated using this general process:
     - Evaluate predictions
 4. Record/Log metrics
 
-The algorithms used were LightGBM and XGBoost for their scalability. Initial model parameters were chosen based on documentation for Best Accuracy as well as Kaggle kernels **LINK**. Ultimately, the goal was to minimize the RMSLE error on the test subset. New features were generated from the `timestamp` variable, specifically, day, month, hour, and day of the week were extracted. To avoid data leakage, filling missing values was accomplished during cross-validation so as to avoid using aggregated statistics from the entire feature space *X* within the training data. Evaluation metrics were saved to a *csv* file containg test set values of RMSLE, RMSE, and MAE. Addtionally, a plot was produced displaying feature importance as determined by the algorithm. 
+The algorithms used were LightGBM and XGBoost for their scalability. Initial model parameters were chosen based on documentation for Best Accuracy as well as Kaggle [kernel](https://www.kaggle.com/purist1024/ashrae-simple-data-cleanup-lb-1-08-no-leaks). Ultimately, the goal was to minimize the RMSLE error on the test subset. New features were generated from the `timestamp` variable, specifically, day, month, hour, and day of the week were extracted. To avoid data leakage, filling missing values was accomplished during cross-validation so as to avoid using aggregated statistics from the entire feature space *X* within the training data. Evaluation metrics were saved to a *csv* file containg test set values of RMSLE, RMSE, and MAE. Addtionally, a plot was produced displaying feature importance as determined by the algorithm. 
 
 
 ### Refinement
