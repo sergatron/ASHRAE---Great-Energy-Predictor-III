@@ -8,29 +8,39 @@ Mainting perfect indoor temperature in a skyscraper requires an extraordinary am
 
 "Under pay-for-performance financing, the building owner makes payments based on the difference between their real energy consumption and what they would have used without any retrofits. The latter values have to come from a model." [1]
 
-Additionally, how do we evaluate energy savings of the improvements? To do this, we need to estimate or model the amount of energy a building would have used *before* the improvements. After the improvements are made, we can compare the energy usage between the original building (modeled energy usage) and the retrofit building (actual energy usage). Then, the energy savings can be calculated due to the retrofit. 
+Additionally, how do we evaluate energy savings of the improvements? To do this, we need to estimate or model the amount of energy a building would have used *before* the improvements. After the improvements are made, we can compare the energy usage between the original building (modeled energy usage) and the retrofit building (actual energy usage). Then, these ***counterfactual*** models are used to calculate the energy savings due to the retrofit. [2]
 
 The provided data was collected over a three year period from over 1,000 buildings across the world. To capture true savings, the model must be quite robust and accurate. The ideal model will be able to find patterns which contribute to energy consumption. It must scale well since the training data includes over 20 million samples. 
 
 ### Problem Statement
-The goal is to create a model which can predict a building's energy use with minimal error. The first step is to use exploratory data analysis (EDA) to understand the nature of all present variables (continuous and discrete) through the use of statistical plots, descriptive and inferential statistics. This exploration will help locate missing values, outliers, and relationships between variables. Ideally, the knowledge gained in this section will be leveraged to build a machine learning model that minimizes prediction error. Removing noisy data is important no matter which ML algorithm is used. Two potential algorithms will be evaluated, LightBGM and XGBoost. Both are tree-based algorithms and should perform well on the large data set. 
+The goal is to create a model which can predict a building's energy use with minimal error. The first step is to use exploratory data analysis (EDA) to understand the nature of all present variables (continuous and discrete) through the use of statistical plots, descriptive and inferential statistics. This exploration will help locate missing values, outliers, and relationships between variables. Ideally, the knowledge gained in this section will be leveraged to build a machine learning model that minimizes prediction error. Removing noisy data is important no matter which ML algorithm is used. Two potential algorithms will be evaluated, LightBGM and XGBoost. Both are tree-based algorithms and should perform well on this large data set. 
 
 
 
 ### Metrics
 The model will aim to minimize the Root Mean Squared Log Error. It is defined as 
 
-#### $\sqrt{1/n \sum_{i=1}^{n} t_i (log(Pi+1)−log(Ai+1))^2}$
+![](img/rmsle_metric.png)
 
 
-where $Pi$ are the predicted values and $Ai$ are the Actual values. Logarithmic properties lets us rewrite this as
+where $Xi$ are the predicted values and $Yi$ are the Actual values. Logarithmic properties lets us rewrite this as
 
-#### $ log\frac {Pi + 1} {Ai + 1} $. 
+![](img/log_p_a.png)
+
+Essentially, the RMSLE gives us a ratio between the predicted and actual values. On the other hand, RMSE gives us an absolute value between the predicted and actual values. For example, if the predicted value is 1000 and actual is 500, RMSLE would equate to ~0.6930, and RMSE would equate to 500. 
+
+|Predicted|Actual|RMSLE|RMSE|
+|---|---|---|---|
+| 5000|10000|0.6930| 5000|
+| 2500|5000|0.6930| 2500|
+| 500|1000|0.6930| 500|
+
+The table above helps visualize the difference between the two metrics. RMSLE is a relative error between predicted and actual values. It gives a larger penalty when the actual value is smaller than predicted. This makes it more suitable for this project as it is better not to underestimate the energy usage of a building. If the model underestimates the energy usage, this may result in lower calculated energy savings due to the retrofit and may falsely imply that the improvements are not working.
 
 
 ## Analysis
 ### Data Exploration and Visualization
-Please refer to Jupyter Notebook LINK for analysis and visualizations.
+Please refer to Jupyter Notebook **LINK** for analysis and visualizations.
 
 
 ## Methodology
@@ -60,16 +70,47 @@ Accuracy is an important aspect of the model, however, it is also important to o
 
 ## Results
 ### Model Evaluation and Validation
-KFold cross-validation was used to validate the model's results. LightGBM was used to create the final model as it performed better than XGBoost, that is, it offered a lower error on the test subset with k-fold cross-validation. 
-### Justification
+KFold cross-validation was used to validate the model's results. LightGBM was used to create the final model as it performed better than XGBoost, that is, it offered a lower error on the test subset with k-fold cross-validation. The best/lowest RMSLE achieved was 0.266 by the LightGBM model as opposed to XGBoost which achieved RMSLE of 0.478 and took much longer to train.
+
+
+To minimize the error further, hyper-parameters were tuned with the use of grid search. In particular, tuned parameters were `num_leaves`, `n_estimators`, `num_boost_round`, `learning_rate` and `reg_lambda`. An optimal combination of these parameters would, in theory, provide a robust model that achieves minimal error on unseen data and does not overfit. Complexity of the model is controlled by `num_leaves` and `n_estimators` in this case. [3]
+
+
+Additionally, `early_stopping_rounds` parameter will stop training when a metric has not improved in some number of rounds on the evaluation subset. This can prevent the model from overfitting because if it's allowed to continue training for the entire specififed number of rounds, then it will continue making improvements on the training subset even though there has been no improvement on the evaluation subset.
+
+
+In terms of regularization, `reg_lambda`, an alias for L2 loss, controls the regularization of the model. Increasing this value limits the complexity by preventing the model from fitting to the noise and improve its ability to discover the true signal. 
+
+
+Parameters `num_boost_round` and `learning_rate` are inversely proportional and also can control overfitting. A very small `learning_rate` value may provide the best accuracy but that would require an increase in `num_boost_round`. This essentially will allow the model to take small steps towards minimizing the error but at the cost of increasing the number of iterations taken to reach the minimum. Settings the `num_boost_round` to a large value, and `learning_rate` to a small value, would allow the model to converge on the minimum error but then it's more likely to overfit. Therefore, finding the optimal values between these parameters allows the model to reach a reasonable error rate within a given amount of iterations. [4]
+
+
+Tuned Hyper-parameters:
+
+|Parameter|Value|
+|---|---|
+| num_leaves | 2100 |
+| n_estimators | 80 |
+| reg_lambda | 4 |
+| early_stopping_rounds | 50 |
+| num_boost_round | 50 |
+| learning_rate | 0.2 |
+
 
 
 ## Conclusion
 ### Reflection
 ### Improvement
-There are numerous other methods which may improve the model further. 
+There are numerous other methods which may improve the model further. One such method is build multiple models, one model for each meter type, electric, chilled water, hot water, and steam. Building a model for each meter may lower the error if the model is better able to capture the seasonal trend that exists for meters such as steam and chilled water. The resulting four models may be a bit more difficult to evaluate as opposed to having a single model. Each model may have its own set of hyper-parameters to optimize, and must be cross-validated. However, it is possible that the error will reduced further with these four models. Another method is to build a model each site. This would result in creating 16 individual models and again would provide its own set of difficulties that come with evaluating mutlitple models.
+
+
+Besides building models, we can try to improve the feature engineering portion. The features added were simply extracted from the timestamp. Perhaps transforming the existing features or adding more useful features may reduce the error even further. Transformations such as scaling is typically not required for tree-based models but it may be worth trying to reduce the error. 
+
+
 
 
 ### Sources
 1. "ASHRAE - Great Energy Predictor III". Competition Description. https://www.kaggle.com/c/ashrae-energy-prediction
-2. "Parameters Tuning - LightGBM". https://lightgbm.readthedocs.io/en/latest/Parameters-Tuning.html
+2. "ASHRAE - Great Energy Predictor III". Data Description. https://www.kaggle.com/c/ashrae-energy-prediction/data
+3. "Parameters Tuning - LightGBM". https://lightgbm.readthedocs.io/en/latest/Parameters-Tuning.html
+4. "Optmization in Accuracy". https://lightgbm.readthedocs.io/en/latest/Features.html#leaf-wise-best-first-tree-growth
