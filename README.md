@@ -58,7 +58,9 @@ In general, the following steps need to performed:
 
 #### 1. Clone repo (git Bash):
 
-```$ git clone https://github.com/sergatron/ASHRAE---Great-Energy-Predictor-III.git```
+```
+$ git clone https://github.com/sergatron/ASHRAE---Great-Energy-Predictor-III.git
+```
 
 
 #### 2. Setup virtual envvironment w/Conda
@@ -72,18 +74,26 @@ conda activate ashrae
 #### 3. Train Model:
 
 This will take some time to train and will output model to "models/lgbm_model.pkl" by default.
-```python models/lgbm_model.py```
+
+```
+python models/lgbm_model.py
+```
 
 
 #### 4. Make Predictions
 
 This will take some time and will output predictions to CSV file named "final_preds_df.csv"
-```python models/submission_df.py```
+
+```
+python models/submission_df.py
+```
 
 
 #### 5. Run web app:
 
-```python app/run.py```
+```
+python app/run.py
+```
 
 
 # File Description
