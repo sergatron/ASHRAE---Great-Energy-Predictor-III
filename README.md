@@ -56,12 +56,14 @@ In general, the following steps need to performed:
  5. Run web app
 
 
-### 1. Clone repo (git Bash):
+#### 1. Clone repo (git Bash):
 
-```$ git clone https://github.com/sergatron/ASHRAE---Great-Energy-Predictor-III.git```
+```
+$ git clone https://github.com/sergatron/ASHRAE---Great-Energy-Predictor-III.git
+```
 
 
-### 2. Setup virtual envvironment w/Conda
+#### 2. Setup virtual envvironment w/Conda
 
 NOTE: *requirements.yml* includes the name for virtual environment; this can easily be changed
 ```
@@ -69,25 +71,35 @@ conda env create -f requirement.yml
 conda activate ashrae
 ```
 
-### 3. Train Model:
+#### 3. Train Model:
 
 This will take some time to train and will output model to "models/lgbm_model.pkl" by default.
-```python models/lgbm_model.py```
+
+```
+python models/lgbm_model.py
+```
 
 
-### 4. Make Predictions
+#### 4. Make Predictions
 
 This will take some time and will output predictions to CSV file named "final_preds_df.csv"
-```python models/submission_df.py```
+
+```
+python models/submission_df.py
+```
 
 
-### 5. Run web app:
+#### 5. Run web app:
 
-```python app/run.py```
+```
+python app/run.py
+```
 
 
 # File Description
-TODO
+ - **app/**: scripts and html templates for the web app
+ - **cleaning/**: Jupyter Notebook to test cleaning functions
+ - **models/**: scripts to build and evaluate ML models. Also contains output *CSV* files of evaluation metrics.
 
 # Acknowledgements
 [Udacity](https://www.udacity.com/) Data Science Nanodegree 
