@@ -1,7 +1,6 @@
 # Predicting Building's Energy Use
 
 ## Project Definition
-### Overview
 
 Maintaining perfect indoor temperature in a skyscraper requires an extraordinary amount of energy which translates to money being spent to maintain those ideal conditions. Additionally, this energy expenditure may have negative impact on the environment. Fortunately, investments are being made to reduce cost and emissions. Buildings which install new and/or upgrade their existing equipment to more efficient ones can reduce energy consumption, cost, and environmental impact. However, how can these savings be measured? 
 
@@ -96,9 +95,15 @@ Tuned Hyper-parameters:
 | learning_rate | 0.2 |
 
 
+According to the model, these are the most important predictors:
+
+![](img/best_params.png)
+
+From the figure above, we can conclude that seasonality, in general, is an important predictor of a building's energy consumption. Seasonality includes variables 'month', 'day', 'hour', and 'air temperature'. One of the most important features is the `building_id` which implies that there is something about the building itself that is a great contributing factor to the energy usage. In other words, the variable `building_id` is a representative of a set of feature space. So, although we have data about the buildings, something still appears to be missing which would further explain the energy usage of that building. Perhaps more data is needed about the building itself to further explains its energy consumption.
+
 
 ## Conclusion
-Reducing energy usage of a building is important for various reasons including financial and environmental impact. This is a practical problem to solve but also presents unique challenges. The resulting model is relatively accurate, but its results also seem to imply that more data is needed. One of the most important features is the `building_id` which implies that there is something about the building itself that is a great contributing factor to the energy usage. In other words, the variable `building_id` is a representative of a set of feature space. So, although we have data about the buidlings, something still appears to be missing which would further explain the energy usage of that building.
+Reducing energy usage of a building is important for various reasons including financial and environmental impact. This is a practical problem to solve but also presents unique challenges. The resulting model is relatively accurate, but its results also seem to imply that more data is needed. As discussed earlier, `building_id` is an interesting predictor since it's simply an integer. Perhaps it may represent the address of the building and was encoded as an integer for privacy reasons. So, does the address make an important predictor in that case? Do the surrounding buildings affect the energy consumption? These are some of the questions that cannot be answered here but may be answered with additional data. 
 
 ### Further Work
 There are numerous other methods which may improve the model further. One such method is build multiple models, one model for each meter type, electric, chilled water, hot water, and steam. Building a model for each meter may lower the error if the model is better able to capture the seasonal trend that exists for meters such as steam and chilled water. The resulting four models may be a bit more difficult to evaluate as opposed to having a single model. Each model may have its own set of hyper-parameters to optimize and must be cross validated. However, it is possible that the error will be reduced further with these four models. Another method is to build a model each site. This would result in creating 16 individual models and again would provide its own set of difficulties that come with evaluating multiple models.
