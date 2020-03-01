@@ -61,6 +61,8 @@ In general, the following steps need to performed to run the app locally:
  4. Make predictions w/model
  5. Run web app
 
+NOTE: pickled model and final predictions are included in this repo. Therefore, steps **3** and **4** can be skipped. 
+
 
 #### 1. Clone repo (git Bash):
 
@@ -97,8 +99,10 @@ python models/submission_df.py
 
 #### 5. Run web app:
 
+To run locally, execute the script below and then open your browser. Enter IP 127.0.0.1:5000
+
 ```
-python app/run.py
+python runapp.py
 ```
 
 
