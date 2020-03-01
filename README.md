@@ -54,7 +54,7 @@ ashrae_capstone
 # Usage
 For reproducibility, this repo may be cloned. Once cloned, scripts must be executed to train model. Then the web app may be run locally. 
 
-In general, the following steps need to performed:
+In general, the following steps need to performed to run the app locally:
  1. Clone repo
  2. Setup virtual environment
  3. Train model
@@ -71,7 +71,7 @@ $ git clone https://github.com/sergatron/ASHRAE---Great-Energy-Predictor-III.git
 
 #### 2. Setup virtual envvironment w/Conda
 
-NOTE: *requirements.yml* includes the name for virtual environment; this can easily be changed
+NOTE: *requirements.yml* includes the name for virtual environment; this can easily be changed but by default is set to 'ashrae'.
 ```
 conda env create -f requirement.yml
 conda activate ashrae
