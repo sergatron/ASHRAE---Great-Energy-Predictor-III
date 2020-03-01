@@ -1,17 +1,14 @@
 from app import app
-import re
 import json
 
 import pandas as pd
 import numpy as np
 
-from plotly.graph_objs import Bar, Figure, Scatter, Histogram
+from plotly.graph_objs import Figure, Scatter
 import plotly
 
 from flask import Flask
-from flask import render_template, request, jsonify
-
-from joblib import dump, load
+from flask import render_template, request
 
 from pandas.api.types import is_datetime64_any_dtype as is_datetime
 from pandas.api.types import is_categorical_dtype
@@ -21,8 +18,6 @@ from EDA.main_page_plots import get_figures
 
 pd.options.display.float_format = '{:.4f}'.format
 
-
-#%%
 
 
 def reduce_mem_usage(df, use_float16=False):
@@ -109,7 +104,7 @@ def load_data(filepath, **kwargs):
 
 # load predictions DataFrame
 preds_df = load_data('models/final_preds_df.csv',
-                     usecols=['meter_reading', 'timestamp'])
+                     usecols=['meter_reading', 'timestamp', 'site_id'])
 
 def plot_predictions(date_range=("2017-01-01", "2017-12-31"), df=preds_df):
 
@@ -182,7 +177,6 @@ def plot_predictions(date_range=("2017-01-01", "2017-12-31"), df=preds_df):
     return fig
 
 
-#%%
 # index webpage displays cool visuals and receives user input text for model
 @app.route('/')
 @app.route('/index')
@@ -192,8 +186,9 @@ def index():
     Renders homepage with visualizations of the data.
 
     """
-
+    # plot imported figures
     graphs = get_figures()
+
     # encode plotly graphs in JSON
     ids = ["graph-{}".format(i) for i, _ in enumerate(graphs)]
     graphJSON = json.dumps(graphs, cls=plotly.utils.PlotlyJSONEncoder)
