@@ -219,8 +219,11 @@ test_data_df.drop('row_id', axis=1, inplace=True)
 # ## Make Predictions
 # Once the date is ready, make predictions on the test data.
 
+# NOTE: use np.expm1 to convert back to kWh since the model was trained
+# to predict a transformed target
+
 print("Making predictions... \n")
-final_predictions = model.predict(test_data_df)
+final_predictions = np.expm1(model.predict(test_data_df))
 test_data_df.shape[0] == final_predictions.shape[0]
 
 # check for negative values
