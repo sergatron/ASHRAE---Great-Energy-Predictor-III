@@ -5,7 +5,6 @@
 
 Mainting perfect indoor temperature in a skyscraper requires an extraordinary amount of energy which translates to money being spent to maintain ideal conditions. Additionally, this energy expenditure may have negative impact on the environment. Fortunately, investments are being made to reduce cost and emissions. Buildings which install new and/or upgrade their existing equiptment to more efficient ones can reduce energy consumption, cost, and environmental impact. However, how can these savings be measured? 
 
-
 "Under pay-for-performance financing, the building owner makes payments based on the difference between their real energy consumption and what they would have used without any retrofits. The latter values have to come from a model." [1]
 
 Additionally, how do we evaluate energy savings of the improvements? To do this, we need to estimate or model the amount of energy a building would have used *before* the improvements. After the improvements are made, we can compare the energy usage between the original building (modeled energy usage) and the retrofit building (actual energy usage). Then, these ***counterfactual*** models are used to calculate the energy savings due to the retrofit. [2]
@@ -101,15 +100,13 @@ Tuned Hyper-parameters:
 
 ## Conclusion
 ### Reflection
-Reducing energy usage of a building is important for various reasons including financial and environmental impact. This is a practical problem to solve but may require challenging solutions. 
+Reducing energy usage of a building is important for various reasons including financial and environmental impact. This is a practical problem to solve but also presents unique challenges. The resulting model is relatively accurate but its results also seem to imply that more data is needed. In particular, one of the most important features is the `building_id` which implies that there is something about the building itself that is a great contributing factor to the energy usage. In other words, the variable `building_id` is a representative of a set of feature space. So although we have data about the buidlings, something still appears to be missing which would further explain the energy usage of that building.
 
 ### Improvement
 There are numerous other methods which may improve the model further. One such method is build multiple models, one model for each meter type, electric, chilled water, hot water, and steam. Building a model for each meter may lower the error if the model is better able to capture the seasonal trend that exists for meters such as steam and chilled water. The resulting four models may be a bit more difficult to evaluate as opposed to having a single model. Each model may have its own set of hyper-parameters to optimize, and must be cross-validated. However, it is possible that the error will reduced further with these four models. Another method is to build a model each site. This would result in creating 16 individual models and again would provide its own set of difficulties that come with evaluating mutlitple models.
 
 
-Besides building models, we can try to improve the feature engineering portion. The features added were simply extracted from the timestamp. Perhaps transforming the existing features or adding more useful features may reduce the error even further. Transformations such as scaling is typically not required for tree-based models but it may be worth trying to reduce the error. 
-
-
+Besides building models, we can try to improve the feature engineering portion of the project. The features added were simply extracted from the timestamp. Perhaps transforming the existing features or adding more useful features may reduce the error even further. Transformations such as scaling is typically not required for tree-based models but it may be worth trying to reduce the error. Also, transforming the target variable using the natural logarithm provided impressive results so it's also worth experimenting with other transformations of the target or feature variables. 
 
 
 ### Sources
