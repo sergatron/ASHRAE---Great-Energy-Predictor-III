@@ -1,8 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[1]:
-
 
 import pandas as pd
 import numpy as np
@@ -14,9 +9,6 @@ import gc
 
 from pandas.api.types import is_datetime64_any_dtype as is_datetime
 from pandas.api.types import is_categorical_dtype
-
-
-# In[2]:
 
 
 
@@ -155,9 +147,6 @@ def add_features(df):
 
 
 # ## Load Test Data
-
-# In[3]:
-
 print("Loading data...\n")
 # Load data
 # train_df = pd.read_csv('../data/train.csv')
@@ -167,8 +156,6 @@ test_df = pd.read_csv('../data/test.csv')
 weather_test_df = pd.read_csv('../data/weather_test.csv')
 
 
-# In[4]:
-
 
 # Convert to Datetime
 dt_format = "%Y-%m-%d %H:%M:%S"
@@ -177,33 +164,23 @@ test_df['timestamp'] = pd.to_datetime(test_df['timestamp'],
 weather_test_df['timestamp'] = pd.to_datetime(weather_test_df['timestamp'],
                                          format=dt_format)
 
-print('Mergind data... \n')
+print('Merging data... \n')
 # MERGE DATA
 tb_df = pd.merge(test_df, building_df, on='building_id')
 test_data_df = pd.merge(tb_df, weather_test_df, on=['site_id', 'timestamp'])
 del test_df, building_df, weather_test_df, tb_df
-
-
-# In[5]:
+gc.collect()
 
 print('Test data shape: \n')
 print(test_data_df.shape)
-
-
-# In[6]:
 
 
 test_data_df = reduce_mem_usage(test_data_df)
 
 
 # ## Load Model
-
-
-
-# In[8]:
-
 print('Loading model... \n')
-model = load('lgbm_model_2.pkl')
+model = load('lgbm_model.pkl')
 
 
 print("Feature importance:\n")
@@ -213,8 +190,6 @@ sorted(list(zip(model.feature_name(),
 
 # ## Prepare Data
 # Clean and process testing data using the same functions as used during training.
-
-# In[9]:
 print("--- Processing data for predictions ---\n")
 
 print('Adding features...\n ')
@@ -222,23 +197,17 @@ add_features(test_data_df)
 print('Filling missing values... \n')
 fill_nans(test_data_df)
 
-
-# In[10]:
-
-
 # drop features
 print('Dropping features... \n')
 test_timestamp = test_data_df['timestamp'].values
 
 drop_cols = ['timestamp', 'year_built', 'floor_count',
-                 'precip_depth_1_hr', 'wind_speed', 'wind_direction',
-                 'cloud_coverage']
+              'precip_depth_1_hr', 'wind_speed', 'wind_direction',
+              'cloud_coverage',
+              'building_id',
+              ]
 
 test_data_df.drop(drop_cols, axis=1, inplace=True)
-
-
-# In[11]:
-
 
 # extract variables to keep
 # row_ids for predictions, then drop row_id
@@ -250,59 +219,33 @@ test_data_df.drop('row_id', axis=1, inplace=True)
 # ## Make Predictions
 # Once the date is ready, make predictions on the test data.
 
-# In[12]:
-
 print("Making predictions... \n")
 final_predictions = model.predict(test_data_df)
 test_data_df.shape[0] == final_predictions.shape[0]
 
-
-# In[13]:
-
-
 # check for negative values
 print('Negative predictions:', (final_predictions < 0).any())
 
-
-# In[14]:
 
 print('Best score achieved by model:\n', model.best_score)
 
 
 
 # ## Save Predictions Array
-
-# In[15]:
-
-print('Saving predictions array... \n')
-np.save('test_predictions', final_predictions)
+# print('Saving predictions array... \n')
+# np.save('test_predictions', final_predictions)
 
 
 # ## Make Submission DataFrame
-
-# In[16]:
-
-
+# clip predictions: if pred is negative, set it to zero
 final_preds_df = pd.DataFrame({"row_id": row_ids,
                                "meter_reading": np.clip(final_predictions, 0, a_max=None),
                                'site_id': site_ids})
 del row_ids, final_predictions
-
-
-# In[17]:
-
+gc.collect()
 
 # add timestamp
 final_preds_df['timestamp'] = test_timestamp
-
-
-# In[18]:
-
-
-final_preds_df.tail(20)
-
-
-# In[19]:
 
 print('Saving predictions DataFrame... \n')
 final_preds_df.to_csv('final_preds_df.csv', encoding='utf-8', index=False)
