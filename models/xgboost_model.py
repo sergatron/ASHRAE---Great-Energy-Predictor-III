@@ -27,8 +27,6 @@ from pandas.api.types import is_datetime64_any_dtype as is_datetime
 from pandas.api.types import is_categorical_dtype
 
 
-# In[57]:
-
 plt.style.use('seaborn-white')
 rcParams['axes.labelsize'] = 'x-large'
 rcParams['axes.edgecolor'] = 'black'
@@ -58,8 +56,6 @@ pd.options.display.max_columns = 30
 pd.options.display.max_rows = 50
 pd.options.display.width = 100
 
-
-# In[59]:
 
 
 def nan_val_summary(df):
@@ -259,8 +255,6 @@ def get_X_y(df, n=1.0, quantile=0.6, filter_meter=True):
     gc.collect()
 
     return X, y
-
-#%%
 
 # define metric, Root Mean Squared Log Error
 def RMSLE(y_true, y_pred):
@@ -484,10 +478,6 @@ def train_cv_model(X, y, params, boost_rounds=500, scale=False, n_splits=4):
     metrics_df.to_csv('xgb_kfold_metrics_df.csv', encoding='utf-8', index=False)
     return metrics_df
 
-
-
-
-#%%
 def load_data():
     # LOAD DATA
     print("Loading data...\n")
@@ -597,14 +587,6 @@ def main(params, boost_rounds=500, data_sample=1.0, output_model=False,
         # np.save(out_arr_path, y_pred_train)
         # print('Saving complete!')
 
-    # write results to DataFrame
-    results_rf = pd.DataFrame({'rmsle_score': [RMSLE(y_test, y_pred)],
-                               'RMSE': [MSE(y_test, y_pred, squared=False)],
-                               'MAE': [MAE(y_test, y_pred)],
-                                'model_name': ['xgboost']
-                               })
-
-    results_rf.to_csv('xgb_results.csv', encoding='utf-8', index=False)
 
     print('All done!')
     return RMSLE(y_test, y_pred)
@@ -619,7 +601,7 @@ if __name__ == '__main__':
         n_estimators=80,
         max_depth=10,
         min_child_weight=3,
-        eta=0.5,
+        eta=0.3,
         subsample=0.7,
         gamma=4,
 
@@ -632,9 +614,9 @@ if __name__ == '__main__':
         params=xgb_params,
         boost_rounds=200,
         data_sample=1.0,
-        output_model=True,
+        output_model=False,
         output_model_path='xgb_model_.pkl',
-        quantile=0.6,
+        quantile=0.7,
         scale=False,
         out_arr_path='xgb_train_predictions.npy',
         validate=False,
@@ -690,55 +672,3 @@ if __name__ == '__main__':
     #     # TODO: record metrics for each param set;
     #     #       pick params with best metric for Test Set
 
-
-#%%
-
-
-# # TODO: Add Hyper-param Search capabilities
-# import itertools
-
-# # Hyperparameter grids
-# leaves_grid = [1900, 2100]
-# lambda_grid = [2, 4, 6]
-# results = {}
-# params = {
-#         "objective": "regression",
-#         "boosting": "gbdt",
-#         "num_leaves": 2100,
-#         "learning_rate": 0.08,
-#         "feature_fraction": 0.85,
-#         "reg_lambda": 2,
-#         "metric": "rmse",
-#         }
-
-# params['num_leaves'] = [1900, 2100]
-# params['reg_lambda'] = [2, 4, 6]
-
-# # For each couple in the grid
-# for leaves, lam in itertools.product(leaves_grid, lambda_grid):
-#     params['num_leaves'] = leaves
-#     params['reg_lambda'] = lam
-#     print('\n')
-#     print(params)
-#     results[(params['num_leaves'], params['reg_lambda'])] = score
-#     # results[params['reg_lambda']] = 55
-
-# # sort dict, return params with highest score
-# sorted(results.items(), key=lambda x: x[1], reverse=True)[0]
-
-
-#%%
-
-
-# # output results to a file
-# with open('cv_results.txt', 'a') as file:
-#     file.write('\n\n')
-#     #file.write(str(time.localtime()))
-#     file.write(('-'*100))
-#     file.write(str(params))
-#     file.write(str(params))
-#     file.write('CV scores:\n')
-#     file.write(str(cv_))
-#     file.write('\n\n')
-#     file.write(('-'*100))
-#     file.write('\n\n')

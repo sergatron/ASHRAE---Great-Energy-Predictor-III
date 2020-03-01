@@ -27,8 +27,6 @@ from pandas.api.types import is_datetime64_any_dtype as is_datetime
 from pandas.api.types import is_categorical_dtype
 
 
-# In[57]:
-
 plt.style.use('seaborn-white')
 rcParams['axes.labelsize'] = 'x-large'
 rcParams['axes.edgecolor'] = 'black'
@@ -58,8 +56,6 @@ pd.options.display.max_columns = 30
 pd.options.display.max_rows = 50
 pd.options.display.width = 100
 
-
-# In[59]:
 
 
 def nan_val_summary(df):
@@ -188,21 +184,25 @@ def fill_nans(df):
 
 
 def add_features(df):
-
+    """
+    Extract features from timestamp.
+    """
     df['month'] = df['timestamp'].dt.month
     df['hour'] = df['timestamp'].dt.hour
     df['day'] = df['timestamp'].dt.day
     df['day_of_week'] = df['timestamp'].dt.weekday
-    df['log_square_ft'] = np.log1p(df['square_feet'])
+    df['log_square_ft'] = np.log1p(df['square_feet'].values)
     # df['air_temp_cos'] = np.cos(df['air_temperature'])
     # df['air_temp_sin'] = np.sin(df['air_temperature'])
 
 def get_sample(df, n=0.5):
+
+    """Samples the input DataFrame `df`. """
     n_sample = np.int32(df.shape[0] * n)
     return df.sample(n_sample)
 
 
-def preprocess_data(df, quantile=0.6):
+def preprocess_data(df, quantile=0.7):
     # drop indices with building 1099
     print('Removing noisy data... \n')
     # get indices of building ID 1099
@@ -218,8 +218,37 @@ def preprocess_data(df, quantile=0.6):
 
     return df
 
-def get_X_y(df, n=1.0, quantile=0.6, filter_meter=True):
+def get_X_y(df, n=1.0, quantile=0.7, filter_meter=True):
 
+    """
+    Process data to remove noise, add features, and remove features.
+
+    Params:
+    -------
+        df: DataFrame
+            Input data.
+
+        n: float, default=1.0
+            Sample fraction of the data. A simple way to speed up model
+            training for development. Be default, all data is used.
+
+        quantile: float, default=0.7
+            Helps to filter out noisy data by excluding `meter_reading`
+            above `quantile` value.
+
+        filter_meter: bool, default=True
+            Filter `meter_reading` by excluding values above a specified
+            `quantile`.
+
+    Returns:
+    --------
+        X: DataFrame
+            Feature space split from the input `df`
+
+        y: Series
+            Target variable split from the input `df`
+
+    """
     # filter outliers
     # discard heavy use, and low energy usage
     if filter_meter:
@@ -241,7 +270,9 @@ def get_X_y(df, n=1.0, quantile=0.6, filter_meter=True):
     # drop features
     drop_cols = ['timestamp', 'year_built', 'floor_count',
                  'precip_depth_1_hr', 'wind_speed', 'wind_direction',
-                 'cloud_coverage']
+                 'cloud_coverage',
+                  'building_id'
+                 ]
 
     df.drop(drop_cols, axis=1, inplace=True)
 
@@ -260,11 +291,26 @@ def get_X_y(df, n=1.0, quantile=0.6, filter_meter=True):
     return X, y
 
 
-# define metric, Root Mean Squared Log Error
 def RMSLE(y_true, y_pred):
     return np.sqrt(np.mean(np.power(np.log1p(y_pred) - np.log1p(y_true), 2)))
 
 def show_metrics(y_true, y_pred):
+    """
+    Displays metrics between the true and predicted values.
+
+    Params:
+    -------
+        y_true: float, int
+            True values
+
+        y_pred: float, int
+            Predicted values.
+
+    Returns:
+    -------
+        None.
+
+    """
     # print params and metric
     print('-' * 75)
     print('RMSLE:', np.round(RMSLE(y_true, y_pred), 4))
@@ -298,14 +344,23 @@ def save_model(model, filepath):
 
 
 def train_lgbm_model(X_train, y_train, X_test, y_test,
-                params, boost_rounds=1000, plot=False):
+                     params, boost_rounds=1000, plot=False):
 
+    """
+    Fit LightGBM model given training and testing data, and model parameters.
 
-    categorical_features = ["building_id",
-                            "site_id",
-                            "meter",
-                            "primary_use",
-                            ]
+    Returns:
+    --------
+        Fitted model
+    """
+
+    categorical_features = [
+        # "building_id",
+        "site_id",
+        "meter",
+        "primary_use",
+        ]
+
     # lgbm train data
     d_training = lgbm.Dataset(X_train,
                               label=y_train,
@@ -338,13 +393,13 @@ def train_lgbm_model(X_train, y_train, X_test, y_test,
 def train_xgboost_model(X_train, y_train, X_test, y_test, params,
                         boost_rounds=500, plot=False):
 
+    """
+    Fit XGBoost model given training and testing data, and parameters.
 
-    # categorical_features = ["building_id",
-    #                         "site_id",
-    #                         "meter",
-    #                         "primary_use",
-    #                         ]
-
+    Returns:
+    --------
+        Fitted model
+    """
     # xgboost train data
     d_training = xgb.DMatrix(X_train, label=y_train)
     # xgboost test data
@@ -374,6 +429,35 @@ def train_xgboost_model(X_train, y_train, X_test, y_test, params,
 
 
 def train_cv_model(X, y, params, scale=False, n_splits=4):
+
+    """
+    Perform K-Fold cross validation on given feature space and
+    target variable. At each split, missing data is filled using
+    helper functions to avoid data leakage. Model is fit and predictions
+    are made on the training and testing subset.
+
+    Optionally, data can be scaled using sklearn's StandardScaler.
+
+    Evaluated metrics are RMSLE, RMSE, and MAE.
+
+    Params:
+    --------
+        X: DataFrame
+            Feature space.
+
+        y: Series, DataFrame
+            Target variable.
+
+        scale: bool, default=False
+            Scales data using sklearn's StandardScaler
+
+        n_splits: int, default=4
+            Number of folds to evaluate.
+
+    Returns:
+    ---------
+        DataFrame containing metrics on each K-Fold split
+    """
 
     # pipeline to transform data
     scaler = StandardScaler()
@@ -454,10 +538,6 @@ def train_cv_model(X, y, params, scale=False, n_splits=4):
     metrics_df['num_folds'] = [n_splits] * train_rmsle.shape[0]
     return metrics_df
 
-
-
-
-#%%
 def load_data():
     # LOAD DATA
     print("Loading data...\n")
@@ -467,14 +547,58 @@ def load_data():
     return train_df, building_df, weather_df
 
 def to_datetime(df, column, dt_format = "%Y-%m-%d %H:%M:%S"):
+    """Convert a variable to datetime object."""
     # Convert to Datetime
     return pd.to_datetime(df[column], format=dt_format)
 
 
 
 def main(params, boost_rounds=1000, data_sample=1.0, output_model=False,
-         out_arr_path='predictions.npy', output_model_path='lgbm_model.pkl',
-         validate=False, quantile=0.5, scale=False, cv_splits=3):
+         output_model_path='lgbm_model.pkl',
+         validate=False, cv_splits=3, quantile=0.7, scale=False):
+
+    """
+    Combines multiple functions to load and process data, fit model, and
+    evaluate using K-Fold cross validation.
+
+    Params:
+    -------
+        params: dict
+            Model parameters.
+
+        boost_rounds: int, default=1000
+            Model parameter to perform this many boosting rounds.
+
+        data_sample: float, default=1.0. Range: 0.0 to 1.0
+            Takes a sample of data from merged DataFrame. By default,
+            all data is used to fit model.
+
+        output_model: bool, default=False
+            Saves model to a pickle file. IF set to False, then the file
+            path is ignored.
+
+        output_model_path: string, default='lgbm_model.pkl'
+            File path to save model.
+
+        validate: bool, default=False
+            If True, K-Fold validation will be performed.
+
+        cv_splits: int, default=3
+            Number of folds for performing K-Fold validation.
+
+        quantile: float, default=0.7
+            Helps to filter out noisy data by excluding `meter_reading`
+            above `quantile` value.
+
+        scale: bool, default=False
+            Scales data using sklearn's StandardScaler
+
+    Returns:
+    --------
+        RMSLE score: float
+            Root Mean Squared Log Error between the true and predicted values.
+
+    """
 
     # LOAD DATA
     train_df, building_df, weather_df = load_data()
@@ -516,19 +640,18 @@ def main(params, boost_rounds=1000, data_sample=1.0, output_model=False,
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 
 
-
     print('Filling missing data...\n')
     fill_nans(X_train), fill_nans(X_test)
 
-    # print("Dropping features: [primary_use]")
     # X.drop(['primary_use'], axis=1, inplace=True)
 
     print('X-shape:', X.shape)
     print('\n')
     print('Training model...\n')
     # train new model
-    model = train_lgbm_model(X_train, np.log1p(y_train), X_test, np.log1p(y_test),
-                        params, boost_rounds=boost_rounds, plot=True)
+    model = train_lgbm_model(X_train, np.log1p(y_train),
+                             X_test, np.log1p(y_test),
+                             params, boost_rounds=boost_rounds, plot=True)
 
     # make predictions
     print('Evaluating predictions... \n')
@@ -550,29 +673,43 @@ def main(params, boost_rounds=1000, data_sample=1.0, output_model=False,
         # np.save(out_arr_path, y_pred_train)
         # print('Saving complete!')
 
-    # # write results to DataFrame
-    # results_rf = pd.DataFrame({'rmsle_score': [RMSLE(y_test, y_pred)],
-    #                            'RMSE': [MSE(y_test, y_pred, squared=False)],
-    #                            'MAE': [MAE(y_test, y_pred)],
-    #                             'model_name': ['light_gbm']
-    #                            })
-
-    # results_rf.to_csv('lgbm_results.csv', encoding='utf-8', index=False)
-
     print('All done!')
     return RMSLE(y_test, y_pred)
 
 
+# def build_model(model_params, validate=False, grid_search=False):
+
+#     start_time = time.perf_counter()
+#     score = main(
+#         params=model_params,
+#         boost_rounds=500,
+#         data_sample=1.0,
+#         output_model=False,
+#         output_model_path='lgbm_model.pkl',
+#         quantile=0.7,
+#         scale=False,
+#         validate=False,
+#         cv_splits=3
+#         )
+#     end_time = time.perf_counter()
+
+#     print('\nTime elapsed:', np.round((end_time - start_time)/60, 4), 'minutes.')
+#     print('-'*75)
+
 #%%
+
+
 if __name__ == '__main__':
 
     params = {
         "objective": "regression",
         "boosting": "gbdt",
-        "num_leaves": 2100,
+        "num_leaves": 3000,
         "n_estimators": 80,
         "learning_rate": 0.2,
-        # "feature_fraction": 0.8,
+        # "feature_fraction": 1.0,
+        # "bagging_fraction": 0.6,
+        # "bagging_freq": 10,
         "reg_lambda": 4,
         "metric": "rmse",
         }
@@ -583,98 +720,70 @@ if __name__ == '__main__':
         boost_rounds=500,
         data_sample=1.0,
         output_model=True,
-        output_model_path='lgbm_model_2.pkl',
+        output_model_path='lgbm_model.pkl',
         quantile=0.7,
         scale=False,
-        out_arr_path='train_predictions.npy',
-        validate=True,
-        cv_splits=3
+        validate=False,
+        cv_splits=5
         )
     end_time = time.perf_counter()
 
     print('\nTime elapsed:', np.round((end_time - start_time)/60, 4), 'minutes.')
     print('-'*75)
 
-    # # HYPER-PARAM SEARCH
+
+
+    #####                HYPER-PARAM SEARCH              #####
+
     # # print('='*75)
     # print('Performing Hyper-param search... ')
     # print('='*75)
+
     # # Hyperparameter grids
-    # input_param = {'num_leaves': [1800, 2100],
-    #                 'n_estimators': [60, 80],
-    #                 "reg_lambda": [2, 4],
-    #                 "feature_fraction": [0.6, 0.8, 1.0],
+    # input_param = {
+    #     # 'num_leaves': [2000, 2500, 3000],
+    #     "bagging_fraction": [0.4, 0.6, 0.8, 1.0],
+    #     "feature_fraction": [1.0],
     #                 }
     # results = {}
 
+    # # -------------------------------------
+    # # TODO
+    # # # extract lists for dict.keys()
+    # # [input_param[key] for key in input_param.keys()]
 
+    # # # extract param names from dict
+    # # list(input_param.keys())
+    # # name_1, name_2 = list(input_param.keys())
+    # # -------------------------------------
+
+    # var_list = [input_param[key] for key in input_param.keys()]
+    # var_count = len(var_list)
+
+
+    # # input_param['num_leaves'], input_param['feature_fraction']
     # # For each couple in the grid
-    # for var1, var2, var3 in itertools.product(input_param['num_leaves'],
-    #                                     input_param['reg_lambda'],
-    #                                     input_param['n_estimators']):
-    #     params['num_leaves'] = var1
-    #     params['n_estimators'] = var3
-    #     params['reg_lambda'] = var2
+    # for (v1, v2) in itertools.product(var_list[0], var_list[1]):
+    #     params['bagging_fraction'] = v1
+    #     params['feature_fraction'] = v2
     #     print('\n')
     #     print(params)
+
     #     # execute model training
     #     score = main(
     #         params=params,
-    #         boost_rounds=800,
-    #         data_sample=1.0,
-    #         output_model=False,
-    #         output_model_path='lgbm_model.pkl',
+    #         boost_rounds=500,
     #         quantile=0.7,
-    #         scale=False,
-    #         out_arr_path='train_predictions.npy',
-    #         validate=False
     #         )
-
-    # results[(var1, var2, var3)] = score
+    # # store results in dictionary
+    # results[(v1, v2)] = score
     # # sort output, smallest value is best
-    # best_params = sorted(results.items(),
-    #                       key=lambda x: x[1],
-    #                       reverse=False)[0][0]
+    # best_params = sorted(results.items(), key=lambda x: x[1], reverse=False)[0][0]
 
+    # print('\nResult:\n', results)
     # print('\nBest params:', best_params)
     #     # TODO: record metrics for each param set;
     #     #       pick params with best metric for Test Set
-
-
-#%%
-
-
-# # TODO: Add Hyper-param Search capabilities
-# import itertools
-
-# # Hyperparameter grids
-# leaves_grid = [1900, 2100]
-# lambda_grid = [2, 4, 6]
-# results = {}
-# params = {
-#         "objective": "regression",
-#         "boosting": "gbdt",
-#         "num_leaves": 2100,
-#         "learning_rate": 0.08,
-#         "feature_fraction": 0.85,
-#         "reg_lambda": 2,
-#         "metric": "rmse",
-#         }
-
-# params['num_leaves'] = [1900, 2100]
-# params['reg_lambda'] = [2, 4, 6]
-
-# # For each couple in the grid
-# for leaves, lam in itertools.product(leaves_grid, lambda_grid):
-#     params['num_leaves'] = leaves
-#     params['reg_lambda'] = lam
-#     print('\n')
-#     print(params)
-#     results[(params['num_leaves'], params['reg_lambda'])] = score
-#     # results[params['reg_lambda']] = 55
-
-# # sort dict, return params with highest score
-# sorted(results.items(), key=lambda x: x[1], reverse=True)[0]
 
 
 #%%
