@@ -4,7 +4,7 @@ This is a capstone project for [Udacity's](https://www.udacity.com/) Data Scienc
 This competition aims to build counterfactual models to predict buildings' energy usage. A successful model should scale well and minimize the Root Mean Squared Log Error. Counterfactual models are estimates of energy usage *before* any improvements are made within the building. This estimate is then compared with the actual energy usage *after* the improvements to calculate energy usage and confirm that the improvements are in fact working.
 
 #### Web Application
-This project takes results a step further to create a web application to present the predictions given some user inputs. Its usage is presented below. Further work involves deploying the model but for the moment it must be run locally.
+This project takes results a step further to create a web application to present the predictions given some user inputs. Its usage is presented below. Further work involves deploying the model but for the moment it must be run locally. Instructions on how to use are provided below.
 
 
 # Table of Contents
